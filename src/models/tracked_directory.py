@@ -1,8 +1,8 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, DirectoryPath
 from datetime import datetime
 
 
 class TrackedDirectory(BaseModel):
     name: str
-    path: str
+    path: DirectoryPath
     last_save_time_str: datetime
