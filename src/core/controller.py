@@ -3,7 +3,7 @@ from enum import Enum
 from watchdog.observers import Observer
 from watchdog.observers.api import BaseObserver
 from src.models.tracked_directory import TrackedDirectory
-from src.event_handler import TrackedDirectoryHandler
+from src.core.event_handler import TrackedDirectoryHandler
 from src.exceptions import ControllerCallError
 from src.logger import LoggerFactory
 
