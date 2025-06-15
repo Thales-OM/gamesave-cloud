@@ -26,13 +26,15 @@ class Metadata(BaseSettings):
         data = None
         try:
             data = Metadata.load_from_disk()
-        except FileNotFoundError as ex:
+        except FileNotFoundError:
             logger.warning(
-                "Failed to load metdata from disk. File not found. Initializing empty metadata."
+                "Failed to load metdata from disk. \
+                    File not found. Initializing empty metadata."
             )
         except Exception as ex:
             logger.warning(
-                f"Failed to load metdata from disk for unknown reason. Initializing empty metadata.\nStackTrace:\n{ex}"
+                f"Failed to load metdata from disk for unknown reason. \
+                    Initializing empty metadata. Detail: \n{ex}"
             )
 
         if data:
@@ -45,8 +47,7 @@ class Metadata(BaseSettings):
         with open(settings.metadata.storage_filepath, "r") as file:
             data = json.load(file)
         return data
-    
+
     def save_to_disk(self) -> None:
         with open(settings.metadata.storage_filepath, "w") as file:
-            data = json.dump(self.model_dump_json, file)
-    
+            json.dump(self.model_dump_json, file)
