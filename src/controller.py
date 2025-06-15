@@ -13,6 +13,7 @@ logger = LoggerFactory.getLogger(__name__)
 
 class Status(Enum):
     NOT_INITIALIZED = "not_initialized"
+    INITIALIZED = "initialized"
     STARTING = "starting"
     STARTED = "started"
     STOPPING = "stopping"
@@ -40,14 +41,16 @@ class DirectoryController:
         return cls._instance
 
     def __init__(self, directories: List[TrackedDirectory]):
-        self.status = Status.STARTING
+        if self.status != Status.NOT_INITIALIZED:
+            logger.warning("Tred to reinitialize the Controller. Skipping.")
+            return
 
         self.directories: Dict[str, ControlPair] = dict()
 
         for directory in directories:
             self.add_directory(dir=directory)
 
-        self.status = Status.STARTED
+        self.status = Status.INITIALIZED
 
     def add_directory(self, dir: TrackedDirectory) -> None:
         """Start watching a new directory"""
@@ -59,6 +62,21 @@ class DirectoryController:
 
         self.directories[dir.path] = ControlPair(dir=dir)
 
+    def start_watching_directory(self, dir: TrackedDirectory) -> None:
+        if dir.path not in self.directories:
+            logger.warning(
+                "Controller tried starting watching a directory \
+                    that was not initialized. Initializing automatically."
+            )
+            self.directories[dir.path] = ControlPair(dir=TrackedDirectory)
+
+        if self.directories[dir.path].observer:
+            logger.warning(
+                "Controller tried to start watching a directory \
+                    with an observer already present. Aborting."
+            )
+            return
+
         observer = Observer()
         event_handler = TrackedDirectoryHandler()
 
@@ -68,6 +86,14 @@ class DirectoryController:
 
         logger.info(f"Started watching directory: {dir.path}")
 
+    def start_all(self) -> None:
+        self.status = Status.STARTING
+
+        for pair in self.directories.values():
+            self.start_watching_directory(dir=pair.directory)
+
+        self.status = Status.STARTED
+
     def stop_all(self) -> None:
         if self.status == Status.STOPPING:
             raise ControllerCallError(
@@ -75,7 +101,8 @@ class DirectoryController:
             )
         if self.status == Status.STOPPED:
             raise ControllerCallError(
-                "Tried stopping Controller when already stopped"
+                "Tried stopping Controller \
+                                      when already stopped"
             )
         if self.status == Status.STARTING:
             raise ControllerCallError(
