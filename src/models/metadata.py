@@ -1,10 +1,11 @@
 import json
+import os
+from pydantic import FilePath
 from typing import List, Dict, Any
 from pydantic_settings import BaseSettings
 from src.models.tracked_directory import TrackedDirectory
 from src.models.remote import GitRemote
 from src.models.version import Version
-from src.settings import settings
 from src.logger import LoggerFactory
 from src.constraints import APP_VERSION
 
@@ -16,16 +17,19 @@ class Metadata(BaseSettings):
     version: Version = APP_VERSION
     directories: List[TrackedDirectory] = []
     remotes: List[GitRemote] = []
+    path: FilePath
 
     def __new__(cls, *args, **kwargs):
         if not hasattr(cls, "_instance"):
             cls._instance = super(Metadata, cls).__new__(cls)
         return cls._instance
 
-    def __init__(self):
+    def __init__(self, path: str):
+        path = os.path.abspath(path)
+
         data = None
         try:
-            data = Metadata.load_from_disk()
+            data = Metadata.load_from_disk(path=path)
         except FileNotFoundError:
             logger.warning(
                 "Failed to load metdata from disk. \
@@ -38,16 +42,16 @@ class Metadata(BaseSettings):
             )
 
         if data:
-            super().__init__(**data)
+            super().__init__(path=path, **data)
         else:
-            super().__init__()
+            super().__init__(path=path)
 
     @staticmethod
-    def load_from_disk() -> Dict[str, Any]:
-        with open(settings.metadata.storage_filepath, "r") as file:
+    def load_from_disk(path: str) -> Dict[str, Any]:
+        with open(path, "r") as file:
             data = json.load(file)
         return data
 
     def save_to_disk(self) -> None:
-        with open(settings.metadata.storage_filepath, "w") as file:
+        with open(self.path, "w") as file:
             json.dump(self.model_dump_json, file)
