@@ -5,6 +5,7 @@ from watchdog.observers.api import BaseObserver
 from src.models.tracked_directory import TrackedDirectory
 from src.core.event_handler import TrackedDirectoryHandler
 from src.exceptions import ControllerCallError
+from src.models.metadata import Metadata
 from src.logger import LoggerFactory
 
 
@@ -32,7 +33,8 @@ class ControlPair:
 
 
 class DirectoryController:
-    directories: Dict[str, ControlPair]
+    directories: Dict[str, ControlPair] = dict()
+    metadata: Optional[Metadata] = None
     status: Status = Status.NOT_INITIALIZED
 
     def __new__(cls, *args, **kwargs):
@@ -40,15 +42,36 @@ class DirectoryController:
             cls._instance = super(DirectoryController, cls).__new__(cls)
         return cls._instance
 
-    def __init__(self, directories: List[TrackedDirectory]):
+    def __init__(
+        self,
+        metadata: Optional[Metadata] = None,
+        directories: Optional[List[TrackedDirectory]] = None,
+    ):
         if self.status != Status.NOT_INITIALIZED:
             logger.warning("Tred to reinitialize the Controller. Skipping.")
             return
 
         self.directories: Dict[str, ControlPair] = dict()
+        self.metadata = None
 
-        for directory in directories:
-            self.add_directory(dir=directory)
+        if not (metadata or directories):
+            raise ValueError(
+                "Neither Metadata, nor directories were provided to Controller"
+            )
+
+        if metadata and directories:
+            logger.warning(
+                "Both Metadata and directories provided \
+                           to Controller. Prioritizing Metadata object."
+            )
+
+        if metadata:
+            self.metadata = metadata
+            for directory in metadata.directories:
+                self.add_directory(dir=directory)
+        else:
+            for directory in directories:
+                self.add_directory(dir=directory)
 
         self.status = Status.INITIALIZED
 
