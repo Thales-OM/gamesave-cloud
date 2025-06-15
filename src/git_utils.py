@@ -1,8 +1,6 @@
 import os
 import subprocess
-import sys
 import platform
-from src.constraints import DEFAULT_MASTER_BRANCH
 from src.logger import LoggerFactory
 
 
@@ -28,7 +26,9 @@ def install_git() -> None:
     if system == "Windows":
         # For Windows, you can use Chocolatey to install Git
         logger.info("Installing Git on Windows...")
-        subprocess.run(["winget", "install", "--id", "Git.Git", "--silent"], check=True)
+        subprocess.run(
+            ["winget", "install", "--id", "Git.Git", "--silent"], check=True
+        )
     elif system == "Linux":
         # For Debian-based systems
         logger.info("Installing Git on Linux...")
@@ -37,15 +37,21 @@ def install_git() -> None:
     elif system == "Darwin":
         # For macOS, you can use Homebrew
         logger.info("Installing Git on macOS...")
-        subprocess.run(["brew", "install", "git", "--quiet", "--force"], check=True)
+        subprocess.run(
+            ["brew", "install", "git", "--quiet", "--force"], check=True
+        )
     else:
-        raise OSError("Unsupported operating system. Please install Git manually.")
+        raise OSError(
+            "Unsupported operating system. Please install Git manually."
+        )
 
 
 def check_git_repository(path: str) -> bool:
     # Check if the directory exists
     if not os.path.isdir(path):
-        raise FileNotFoundError(f"Expected local repository path {path} does not exist.")
+        raise FileNotFoundError(
+            f"Expected local repository path {path} does not exist."
+        )
     # Check if it's a git repository
     try:
         subprocess.run(
@@ -65,7 +71,9 @@ def create_git_repository(path: str) -> None:
     logger.info(f"Created a new git repository at {path}.")
 
 
-def create_master_branch(path: str, master_branch: str = DEFAULT_MASTER_BRANCH) -> None:
+def create_master_branch(path: str, master_branch: str = "master") -> None:
     # Create a master branch from the current HEAD
-    subprocess.run(["git", "-C", path, "checkout", "-b", master_branch], check=True)
+    subprocess.run(
+        ["git", "-C", path, "checkout", "-b", master_branch], check=True
+    )
     logger.info("Created a master branch from the current HEAD.")
