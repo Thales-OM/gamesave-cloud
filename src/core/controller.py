@@ -1,5 +1,6 @@
 from typing import List, Dict, Optional
 from enum import Enum
+from pydantic import DirectoryPath
 from watchdog.observers import Observer
 from watchdog.observers.api import BaseObserver
 from src.models.tracked_directory import TrackedDirectory
@@ -33,7 +34,7 @@ class ControlPair:
 
 
 class DirectoryController:
-    directories: Dict[str, ControlPair] = dict()
+    directories: Dict[DirectoryPath, ControlPair] = dict()
     metadata: Optional[Metadata] = None
     status: Status = Status.NOT_INITIALIZED
 
@@ -51,7 +52,7 @@ class DirectoryController:
             logger.warning("Tred to reinitialize the Controller. Skipping.")
             return
 
-        self.directories: Dict[str, ControlPair] = dict()
+        self.directories: Dict[DirectoryPath, ControlPair] = dict()
         self.metadata = None
 
         if not (metadata or directories):
@@ -85,13 +86,17 @@ class DirectoryController:
 
         self.directories[dir.path] = ControlPair(dir=dir)
 
+        if self.metadata:
+            self.metadata.add_directory(dir=dir)
+            self.metadata.save_to_disk()
+
     def start_watching_directory(self, dir: TrackedDirectory) -> None:
         if dir.path not in self.directories:
             logger.warning(
                 "Controller tried starting watching a directory \
                     that was not initialized. Initializing automatically."
             )
-            self.directories[dir.path] = ControlPair(dir=TrackedDirectory)
+            self.add_directory(dir=dir)
 
         if self.directories[dir.path].observer:
             logger.warning(
