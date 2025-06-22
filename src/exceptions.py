@@ -8,3 +8,9 @@ class ControllerCallError(BaseException):
     """
     An invalid request was made to the Controller
     """
+
+
+class MetadataError(BaseException):
+    """
+    Base class for errors during Metadata initialization/operations
+    """
