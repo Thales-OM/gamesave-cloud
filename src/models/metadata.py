@@ -1,6 +1,6 @@
 import json
 import os
-from pydantic import FilePath, DirectoryPath
+from pydantic import DirectoryPath
 from typing import List, Dict, Any, Optional
 from pydantic_settings import BaseSettings
 from src.models.tracked_directory import TrackedDirectory
@@ -21,7 +21,7 @@ class Metadata(BaseSettings):
     version: Version = APP_VERSION
     directories: List[TrackedDirectory] = []
     remotes: List[GitRemote] = []
-    path: FilePath
+    path: str
     directory_paths: Dict[DirectoryPath, TrackedDirectory] = dict()
     directory_names: Dict[str, TrackedDirectory] = dict()
 
