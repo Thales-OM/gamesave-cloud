@@ -38,12 +38,12 @@ class Metadata(BaseSettings):
             data = Metadata.load_from_disk(path=path)
         except FileNotFoundError:
             logger.warning(
-                "Failed to load metdata from disk. \
+                "Failed to load metadata from disk. \
                     File not found. Initializing empty metadata."
             )
         except Exception as ex:
             logger.warning(
-                f"Failed to load metdata from disk for unknown reason. \
+                f"Failed to load metadata from disk for unknown reason. \
                     Initializing empty metadata. Detail: \n{ex}"
             )
 
