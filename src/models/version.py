@@ -80,7 +80,7 @@ class Version:
         yield cls.validate
 
     @classmethod
-    def validate(cls, v):
+    def validate(cls, v, *args, **kwargs):
         if isinstance(v, cls):
             return v
         if isinstance(v, str):
