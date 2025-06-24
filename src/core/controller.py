@@ -26,16 +26,14 @@ class ControlPair:
     directory: TrackedDirectory
     observer: Optional[BaseObserver] = None
 
-    def __init__(
-        self, dir: TrackedDirectory, obs: Optional[BaseObserver] = None
-    ):
+    def __init__(self, dir: TrackedDirectory, obs: Optional[BaseObserver] = None):
         self.directory = dir
         self.observer = obs
 
 
 class DirectoryController:
-    directories: Dict[DirectoryPath, ControlPair] = dict()
-    metadata: Optional[Metadata] = None
+    observers: Dict[DirectoryPath, BaseObserver] = dict()
+    metadata: Metadata
     status: Status = Status.NOT_INITIALIZED
 
     def __new__(cls, *args, **kwargs):
@@ -43,62 +41,54 @@ class DirectoryController:
             cls._instance = super(DirectoryController, cls).__new__(cls)
         return cls._instance
 
-    def __init__(
-        self,
-        metadata: Optional[Metadata] = None,
-        directories: Optional[List[TrackedDirectory]] = None,
-    ):
+    def __init__(self, metadata: Optional[Metadata]):
         if self.status != Status.NOT_INITIALIZED:
             logger.warning("Tred to reinitialize the Controller. Skipping.")
             return
 
-        self.directories: Dict[DirectoryPath, ControlPair] = dict()
-        self.metadata = None
-
-        if not (metadata or directories):
-            raise ValueError(
-                "Neither Metadata, nor directories were provided to Controller"
-            )
-
-        if metadata and directories:
-            logger.warning(
-                "Both Metadata and directories provided \
-                           to Controller. Prioritizing Metadata object."
-            )
-
-        if metadata:
-            self.metadata = metadata
-            for directory in metadata.directories:
-                self.add_directory(dir=directory)
-        else:
-            for directory in directories:
-                self.add_directory(dir=directory)
+        self.metadata = metadata
+        for directory in metadata.directories:
+            self.add_directory(dir=directory)
+        self.metadata.save_to_disk()
 
         self.status = Status.INITIALIZED
 
-    def add_directory(self, dir: TrackedDirectory) -> None:
-        """Start watching a new directory"""
-        if dir.path in self.directories:
-            logger.warning(
-                "Tried adding an already present directory to the Controller"
-            )
-            return
-
-        self.directories[dir.path] = ControlPair(dir=dir)
-
-        if self.metadata:
+    def add_directory(
+        self,
+        dir: TrackedDirectory,
+    ) -> None:
+        """Add directory to current Metadata"""
+        try:
             self.metadata.add_directory(dir=dir)
-            self.metadata.save_to_disk()
+        except Exception as ex:
+            logger.error(
+                f"Failed to add directory to Metadata: \n{ex}"
+            )
+    
+    def delete_directory(
+            self,
+            dir: TrackedDirectory
+    ) -> None:
+        """Remove directory from current Metadata"""
+        # Remove from observers if needed
+        self.stop_observer(dir=dir)
 
-    def start_watching_directory(self, dir: TrackedDirectory) -> None:
-        if dir.path not in self.directories:
+        try:
+            self.metadata.delete_directory(path=dir.path)
+        except Exception as ex:
+            logger.error(
+                f"Failed to delete directory from Metadata: \n{ex}"
+            ) 
+
+    def start_observer(self, dir: TrackedDirectory) -> None:
+        if not self.metadata.get_directory_by_path(path=dir.path):
             logger.warning(
-                "Controller tried starting watching a directory \
-                    that was not initialized. Initializing automatically."
+                "Tried starting observer on a directory not \
+                           present in Metadata. Automatically adding..."
             )
             self.add_directory(dir=dir)
 
-        if self.directories[dir.path].observer:
+        if self.observers[dir.path]:
             logger.warning(
                 "Controller tried to start watching a directory \
                     with an observer already present. Aborting."
@@ -110,15 +100,22 @@ class DirectoryController:
 
         observer.schedule(event_handler, dir.path, recursive=True)
         observer.start()
-        self.directories[dir.path].observer = observer
+        self.observers[dir.path] = observer
 
         logger.info(f"Started watching directory: {dir.path}")
+
+    def stop_observer(self, dir: TrackedDirectory) -> None:
+        observer = self.observers.pop(dir.path, None)
+        if observer:
+            observer.stop()
+            observer.join()
+            logger.debug(f"Stopped observer for: {dir.path}")
 
     def start_all(self) -> None:
         self.status = Status.STARTING
 
-        for pair in self.directories.values():
-            self.start_watching_directory(dir=pair.directory)
+        for dir in self.metadata.get_all_directories():
+            self.start_observer(dir=dir)
 
         self.status = Status.STARTED
 
@@ -140,12 +137,11 @@ class DirectoryController:
 
         self.status = Status.STOPPING
 
-        while self.directories:
-            dir_path, pair = self.directories.popitem()
-            if pair.observer:
-                pair.observer.stop()
-                pair.observer.join()
-                logger.debug(f"Stopped observer for: {dir_path}")
+        while self.observers:
+            dir_path, observer = self.observers.popitem()
+            observer.stop()
+            observer.join()
+            logger.debug(f"Stopped observer for: {dir_path}")
 
         logger.info("All directory watchers have been stopped and removed")
 

@@ -35,7 +35,7 @@ async def health():
 async def add_directory(body: CreateDirectoryRequest):
     dir = TrackedDirectory(**body)
     controller.add_directory(dir=dir)
-    controller.start_watching_directory(dir=dir)
+    controller.start_observer(dir=dir)
     return JSONResponse(
         status_code=200, content={"message": "Directory added successfully"}
     )
