@@ -1,7 +1,7 @@
 import json
 import os
 from pydantic import FilePath, DirectoryPath
-from typing import List, Dict, Any, Set, Optional
+from typing import List, Dict, Any, Optional
 from pydantic_settings import BaseSettings
 from src.models.tracked_directory import TrackedDirectory
 from src.models.remote import GitRemote
@@ -22,8 +22,8 @@ class Metadata(BaseSettings):
     directories: List[TrackedDirectory] = []
     remotes: List[GitRemote] = []
     path: FilePath
-    directory_paths: Set[DirectoryPath] = set()
-    directory_names: Set[str] = set()
+    directory_paths: Dict[DirectoryPath, TrackedDirectory] = dict()
+    directory_names: Dict[str, TrackedDirectory] = dict()
 
     def __new__(cls, *args, **kwargs):
         if not hasattr(cls, "_instance"):
@@ -53,8 +53,8 @@ class Metadata(BaseSettings):
             super().__init__(path=path)
 
     def model_post_init(self, context: Any, /) -> None:
-        self.directory_paths = set([dir.path for dir in self.directories])
-        self.directory_names = set([dir.name for dir in self.directories])
+        self.directory_paths = {dir.path: dir for dir in self.directories}
+        self.directory_names = {dir.name: dir for dir in self.directories}
 
     @staticmethod
     def load_from_disk(path: str) -> Dict[str, Any]:
@@ -79,8 +79,8 @@ class Metadata(BaseSettings):
             )
 
         self.directories.append(dir)
-        self.directory_paths.add(dir.path)
-        self.directory_names.add(dir.name)
+        self.directory_paths[dir.path] = dir
+        self.directory_names[dir.name] = dir
 
     def delete_directory(
         self, name: Optional[str], path: Optional[DirectoryPath]
@@ -105,15 +105,21 @@ class Metadata(BaseSettings):
         for idx, dir in enumerate(self.directories):
             if name and dir.name == name:
                 self.directories.pop(idx)
-                self.directory_names.remove(name)
-                self.directory_paths.remove(dir.path)
+                self.directory_names.pop(name)
+                self.directory_paths.pop(dir.path)
                 return
             if path and dir.path == path:
                 self.directories.pop(idx)
-                self.directory_names.remove(dir.name)
-                self.directory_paths.remove(path)
+                self.directory_names.pop(dir.name)
+                self.directory_paths.pop(path)
                 return
 
         raise MetadataError(
             "Failed to delete a directory given valid args: ({name}, {path})"
         )
+    
+    def get_directory_by_path(self, path: str) -> Optional[TrackedDirectory]:
+        return self.directory_paths.get(path, None)
+
+    def get_directory_by_path(self, name: str) -> Optional[TrackedDirectory]:
+        return self.directory_names.get(name, None)
