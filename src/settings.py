@@ -1,4 +1,4 @@
-from pydantic import Field, model_validator, DirectoryPath
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings
 from src.constraints import (
     DEFAULT_LOG_LEVEL,
@@ -22,7 +22,7 @@ class SaveStateSettings(BaseSettings):
 
 
 class MetadataSettings(BaseSettings):
-    storage_filepath: DirectoryPath = METADATA_STORAGE_FILEPATH
+    storage_filepath: str = METADATA_STORAGE_FILEPATH
 
 
 class GitSettings(BaseSettings):
