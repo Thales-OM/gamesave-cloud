@@ -117,9 +117,12 @@ class Metadata(BaseSettings):
         raise MetadataError(
             "Failed to delete a directory given valid args: ({name}, {path})"
         )
-    
+
     def get_directory_by_path(self, path: str) -> Optional[TrackedDirectory]:
         return self.directory_paths.get(path, None)
 
     def get_directory_by_name(self, name: str) -> Optional[TrackedDirectory]:
         return self.directory_names.get(name, None)
+
+    def get_all_directories(self) -> List[TrackedDirectory]:
+        return self.directories
