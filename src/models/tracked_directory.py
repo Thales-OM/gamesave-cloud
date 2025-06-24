@@ -14,7 +14,7 @@ class TrackedDirectory(BaseModel):
     path: DirectoryPath
     last_save_time: Optional[datetime] = None
 
-    @field_validator("last_save_time_str", mode="after")
+    @field_validator("last_save_time", mode="after")
     @classmethod
     def verify_timezone(cls, value: datetime) -> Optional[datetime]:
         if value.tzinfo is None:
