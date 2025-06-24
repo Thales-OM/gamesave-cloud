@@ -121,5 +121,5 @@ class Metadata(BaseSettings):
     def get_directory_by_path(self, path: str) -> Optional[TrackedDirectory]:
         return self.directory_paths.get(path, None)
 
-    def get_directory_by_path(self, name: str) -> Optional[TrackedDirectory]:
+    def get_directory_by_name(self, name: str) -> Optional[TrackedDirectory]:
         return self.directory_names.get(name, None)
