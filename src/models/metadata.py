@@ -51,6 +51,7 @@ class Metadata(BaseSettings):
             super().__init__(path=path, **data)
         else:
             super().__init__(path=path)
+            self.save_to_disk() # Save new created Metadata
 
     def model_post_init(self, context: Any, /) -> None:
         self.directory_paths = {dir.path: dir for dir in self.directories}
