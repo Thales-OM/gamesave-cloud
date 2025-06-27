@@ -65,7 +65,7 @@ class Metadata(BaseSettings):
 
     def save_to_disk(self) -> None:
         with open(self.path, "w") as file:
-            json.dump(self.model_dump_json(include=CONFIG_FIELDS), file)
+            json.dump(self.model_dump(include=CONFIG_FIELDS), file, indent=4)
 
     def add_directory(self, dir: TrackedDirectory) -> None:
         if dir.path in self.directory_paths:
