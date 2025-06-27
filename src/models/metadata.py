@@ -14,7 +14,7 @@ from src.exceptions import MetadataError
 logger = LoggerFactory.getLogger(__name__)
 
 
-CONFIG_FIELDS = {"version", "directories", "remotes"}
+CONFIG_FIELDS = {"version", "directories", "remote"}
 
 
 class Metadata(BaseSettings):
