@@ -1,13 +1,17 @@
 from pydantic import BaseModel
-from typing import Any
+from typing import Any, Tuple
 import re
 
-class Version:
+
+class Version(str):
     """
     Custom Version type for semantic versions like '1.0.2'.
     Supports validation and comparison operators.
     """
-    version_pattern = re.compile(r'^\d+\.\d+\.\d+$')
+
+    version_pattern = re.compile(r"^\d+\.\d+\.\d+$")
+    version_str: str
+    version_tuple: Tuple[int]
 
     def __init__(self, version_str: str):
         if not isinstance(version_str, str):
@@ -15,7 +19,7 @@ class Version:
         if not self.version_pattern.match(version_str):
             raise ValueError(f"Invalid version format: {version_str}")
         self.version_str = version_str
-        self.version_tuple = tuple(int(part) for part in version_str.split('.'))
+        self.version_tuple = tuple(int(part) for part in version_str.split("."))
 
     def __str__(self) -> str:
         return self.version_str
