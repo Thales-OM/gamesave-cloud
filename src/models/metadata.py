@@ -20,7 +20,7 @@ CONFIG_FIELDS = {"version", "directories", "remotes"}
 class Metadata(BaseSettings):
     version: Version = APP_VERSION
     directories: List[TrackedDirectory] = []
-    remotes: List[GitRemote] = []
+    remote: Optional[GitRemote] = None
     path: str
     directory_paths: Dict[DirectoryPath, TrackedDirectory] = dict()
     directory_names: Dict[str, TrackedDirectory] = dict()
