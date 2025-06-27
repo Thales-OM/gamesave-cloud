@@ -1,5 +1,5 @@
 import os
-from pydantic import BaseModel, DirectoryPath, field_validator
+from pydantic import BaseModel, DirectoryPath, field_validator, model_validator
 from typing import Optional
 from datetime import datetime
 from pathlib import Path
@@ -34,10 +34,11 @@ class TrackedDirectory(BaseModel):
     def create_name_auto(path: str) -> str:
         return os.path.basename(path)
 
-    @field_validator("name", mode="after")
-    def make_path_absolute(self, value: Optional[str]) -> str:
-        if value:
-            return value
+    @model_validator(mode="after")
+    def validate_name(self) -> str:
+        if self.name:
+            return self
         synth_name = TrackedDirectory.create_name_auto(path=self.path)
         logger.info(f"No name was provided for directory at path: {self.path}. Automatically assigning: {synth_name}.")
-        return synth_name
+        self.name = synth_name
+        return self
