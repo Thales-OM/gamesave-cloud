@@ -1,3 +1,4 @@
+import os
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings
 from src.constants import (
@@ -5,7 +6,8 @@ from src.constants import (
     DEFAULT_LIMIT_SAVE_INTERVALS,
     DEFAULT_SAVE_COOLDOWN_SEC,
     DEFAULT_MASTER_BRANCH,
-    METADATA_STORAGE_FILEPATH,
+    METADATA_DIRECTORY_PATH,
+    METADATA_FILENAME,
     DAEMON_PORT_RANGE_MIN,
     DAEMON_PORT_RANGE_MAX,
 )
@@ -22,7 +24,12 @@ class SaveStateSettings(BaseSettings):
 
 
 class MetadataSettings(BaseSettings):
-    storage_filepath: str = METADATA_STORAGE_FILEPATH
+    directory_path: str = METADATA_DIRECTORY_PATH
+    filename: str = METADATA_FILENAME
+
+    @property
+    def filepath(self) -> str:
+        return os.path.join(self.directory_path, self.filename)
 
 
 class GitSettings(BaseSettings):
