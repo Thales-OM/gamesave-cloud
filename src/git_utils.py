@@ -187,3 +187,83 @@ def git_pull_with_conflict_resolution(
                 raise GitError(f"Conflict resolution failed: {e}")
     except Exception as e:
         raise GitError(f"An unexpected error occurred: {e}")
+
+
+def manage_git_remote(
+    repo_path: str, remote_name: str, remote_url: str
+) -> None:
+    """
+    Add or update a Git remote in the specified repository.
+
+    Args:
+        repo_path: Path to the Git repository
+        remote_name: Name of the remote (e.g., 'origin')
+        remote_url: URL of the remote repository
+
+    Returns:
+        None
+    """
+    try:
+        repo_dir = Path(repo_path).absolute()
+
+        # Validate directory and repository
+        if not repo_dir.is_dir():
+            raise GitError(f"Error: {repo_path} is not a valid directory")
+
+        if check_git_repository(path=str(repo_dir)):
+            raise GitError(f"Error: {repo_path} is not a Git repository")
+
+        # Check if remote exists
+        remote_check = subprocess.run(
+            ["git", "remote", "get-url", remote_name],
+            cwd=repo_dir,
+            capture_output=True,
+            text=True,
+        )
+
+        if remote_check.returncode == 0:
+            # Remote exists - check if URL matches
+            current_url = remote_check.stdout.strip()
+            if current_url == remote_url:
+                logger.info(
+                    f"Remote '{remote_name}' already exists with the \
+                        correct URL"
+                )
+                return
+
+            # Update existing remote
+            logger.info(
+                f"Updating remote '{remote_name}' from {current_url} \
+                    to {remote_url}"
+            )
+            subprocess.run(
+                ["git", "remote", "set-url", remote_name, remote_url],
+                cwd=repo_dir,
+                check=True,
+            )
+        else:
+            # Add new remote
+            logger.info(
+                f"Adding new remote '{remote_name}' with URL {remote_url}"
+            )
+            subprocess.run(
+                ["git", "remote", "add", remote_name, remote_url],
+                cwd=repo_dir,
+                check=True,
+            )
+
+        # Verify the change
+        verify = subprocess.run(
+            ["git", "remote", "get-url", remote_name],
+            cwd=repo_dir,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+
+        if verify.stdout.strip() == remote_url:
+            logger.info("Remote URL successfully updated")
+            return
+        raise GitError("Failed to verify remote URL update")
+    except subprocess.CalledProcessError as e:
+        raise GitError(f"Git command failed: {e.stderr.strip()}")
