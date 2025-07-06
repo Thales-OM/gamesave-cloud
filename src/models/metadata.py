@@ -8,6 +8,7 @@ from src.models.remote import GitRemote
 from src.models.version import Version
 from src.logger import LoggerFactory
 from src.constants import APP_VERSION
+from src.common.singleton import Singleton
 from src.exceptions import MetadataError
 
 
@@ -17,18 +18,13 @@ logger = LoggerFactory.getLogger(__name__)
 CONFIG_FIELDS = {"version", "directories", "remote"}
 
 
-class Metadata(BaseSettings):
+class Metadata(BaseSettings, metaclass=Singleton):
     version: Version = APP_VERSION
     directories: List[TrackedDirectory] = []
     remote: Optional[GitRemote] = None
     path: str
     directory_paths: Dict[DirectoryPath, TrackedDirectory] = dict()
     directory_names: Dict[str, TrackedDirectory] = dict()
-
-    def __new__(cls, *args, **kwargs):
-        if not hasattr(cls, "_instance"):
-            cls._instance = super(Metadata, cls).__new__(cls)
-        return cls._instance
 
     def __init__(self, path: str):
         path = os.path.abspath(path)

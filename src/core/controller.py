@@ -7,6 +7,7 @@ from src.models.tracked_directory import TrackedDirectory
 from src.core.event_handler import TrackedDirectoryHandler
 from src.exceptions import ControllerCallError
 from src.models.metadata import Metadata
+from src.common.singleton import Singleton
 from src.logger import LoggerFactory
 
 
@@ -22,15 +23,10 @@ class Status(Enum):
     STOPPED = "stopped"
 
 
-class DirectoryController:
+class DirectoryController(metaclass=Singleton):
     observers: Dict[DirectoryPath, BaseObserver] = dict()
     metadata: Metadata
     status: Status = Status.NOT_INITIALIZED
-
-    def __new__(cls, *args, **kwargs):
-        if not hasattr(cls, "_instance"):
-            cls._instance = super(DirectoryController, cls).__new__(cls)
-        return cls._instance
 
     def __init__(self, metadata: Optional[Metadata]):
         if self.status != Status.NOT_INITIALIZED:
