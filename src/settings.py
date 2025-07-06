@@ -1,6 +1,6 @@
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings
-from src.constraints import (
+from src.constants import (
     DEFAULT_LOG_LEVEL,
     DEFAULT_LIMIT_SAVE_INTERVALS,
     DEFAULT_SAVE_COOLDOWN_SEC,

@@ -7,7 +7,7 @@ from src.models.tracked_directory import TrackedDirectory
 from src.models.remote import GitRemote
 from src.models.version import Version
 from src.logger import LoggerFactory
-from src.constraints import APP_VERSION
+from src.constants import APP_VERSION
 from src.exceptions import MetadataError
 
 
@@ -51,7 +51,7 @@ class Metadata(BaseSettings):
             super().__init__(path=path, **data)
         else:
             super().__init__(path=path)
-            self.save_to_disk() # Save new created Metadata
+            self.save_to_disk()  # Save new created Metadata
 
     def model_post_init(self, context: Any, /) -> None:
         self.directory_paths = {dir.path: dir for dir in self.directories}
