@@ -1,4 +1,4 @@
-from typing import List, Dict, Optional
+from typing import Dict, Optional
 from enum import Enum
 from pydantic import DirectoryPath
 from watchdog.observers import Observer
@@ -20,15 +20,6 @@ class Status(Enum):
     STARTED = "started"
     STOPPING = "stopping"
     STOPPED = "stopped"
-
-
-class ControlPair:
-    directory: TrackedDirectory
-    observer: Optional[BaseObserver] = None
-
-    def __init__(self, dir: TrackedDirectory, obs: Optional[BaseObserver] = None):
-        self.directory = dir
-        self.observer = obs
 
 
 class DirectoryController:
@@ -61,14 +52,9 @@ class DirectoryController:
         try:
             self.metadata.add_directory(dir=dir)
         except Exception as ex:
-            logger.error(
-                f"Failed to add directory to Metadata: \n{ex}"
-            )
-    
-    def delete_directory(
-            self,
-            dir: TrackedDirectory
-    ) -> None:
+            logger.error(f"Failed to add directory to Metadata: \n{ex}")
+
+    def delete_directory(self, dir: TrackedDirectory) -> None:
         """Remove directory from current Metadata"""
         # Remove from observers if needed
         self.stop_observer(dir=dir)
@@ -76,9 +62,7 @@ class DirectoryController:
         try:
             self.metadata.delete_directory(path=dir.path)
         except Exception as ex:
-            logger.error(
-                f"Failed to delete directory from Metadata: \n{ex}"
-            ) 
+            logger.error(f"Failed to delete directory from Metadata: \n{ex}")
 
     def start_observer(self, dir: TrackedDirectory) -> None:
         if not self.metadata.get_directory_by_path(path=dir.path):
