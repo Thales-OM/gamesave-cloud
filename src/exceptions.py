@@ -14,3 +14,9 @@ class MetadataError(BaseException):
     """
     Base class for errors during Metadata initialization/operations
     """
+
+
+class GitError(BaseException):
+    """
+    Base class for errors when working with Git
+    """
