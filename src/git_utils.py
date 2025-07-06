@@ -5,7 +5,6 @@ from pathlib import Path
 from src.exceptions import GitError
 from src.logger import LoggerFactory
 
-
 logger = LoggerFactory.getLogger(__name__)
 
 
@@ -81,68 +80,110 @@ def create_master_branch(path: str, master_branch: str = "master") -> None:
     logger.info("Created a master branch from the current HEAD.")
 
 
-def git_pull_accept_remote(directory_path):
+def git_pull_with_conflict_resolution(
+    repo_dir: str,
+    remote_name: str = "origin",
+    remote_branch: str = None,
+    local_branch: str = None,
+    favor_remote: bool = True,
+) -> None:
     """
-    Perform git pull in the specified directory, resolving conflicts in
-    favor of remote changes without changing the current working directory
-    of the main program.
+    Perform git pull with conflict resolution options.
 
     Args:
-        directory_path (str): Path to the git repository directory
+        repo_dir: Path to the local git repository
+        remote_name: Name of the remote (default: 'origin')
+        remote_branch: Remote branch name (default: current local
+            branch's upstream)
+        local_branch: Local branch name (default: current branch)
+        favor_remote: Whether to resolve conflicts in favor of
+            remote (default: True)
 
     Returns:
-        bool: True if successful, False if failed
+        None
     """
     try:
-        # Convert to absolute path and verify it's a directory
-        repo_path = Path(directory_path).absolute()
+        repo_path = Path(repo_dir).absolute()
+
+        # Validate directory and repository
         if not repo_path.is_dir():
             raise FileNotFoundError(
-                f"Error: {directory_path} is not a valid directory"
+                f"Error: {repo_dir} is not a valid directory"
             )
+        if not check_git_repository(path=str(repo_dir)):
+            raise GitError(f"Error: {repo_dir} is not a git repository")
 
-        # Check if this is a git repository
-        if not (repo_path / ".git").is_dir():
-            raise GitError(f"Error: {directory_path} is not a git repository")
+        # Get current branch if not specified
+        if not local_branch:
+            result = subprocess.run(
+                ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+                cwd=repo_path,
+                capture_output=True,
+                text=True,
+            )
+            local_branch = result.stdout.strip()
+            if not local_branch:
+                raise GitError("Error: Could not determine current branch")
 
-        logger.info(f"Performing git pull in {repo_path}...")
+        # Get remote branch if not specified
+        if not remote_branch:
+            result = subprocess.run(
+                ["git", "config", "--get", f"branch.{local_branch}.merge"],
+                cwd=repo_path,
+                capture_output=True,
+                text=True,
+            )
+            remote_branch = result.stdout.strip().replace("refs/heads/", "")
+            if not remote_branch:
+                remote_branch = local_branch  # Fallback to same name as local
 
-        # First try a normal pull
+        logger.info(
+            f"Pulling {remote_name}/{remote_branch} into {local_branch}..."
+        )
+
+        # First try normal pull
         try:
-            subprocess.run(["git", "pull"], cwd=repo_path, check=True)
+            pull_cmd = [
+                "git",
+                "pull",
+                remote_name,
+                f"{remote_branch}:{local_branch}",
+            ]
+            subprocess.run(pull_cmd, cwd=repo_path, check=True)
             logger.info("Git pull completed successfully")
-            return True
         except subprocess.CalledProcessError as e:
             logger.warning(
-                f"Normal pull failed, attempting to resolve \
-                    conflicts in favor of remote...\n{e}"
+                f"Normal pull failed, attempting conflict resolution...\n{e}"
             )
 
-            # If normal pull fails, try with merge strategy
-            # favoring remote changes
             try:
-                # Fetch all changes first
+                # Fetch updates
                 subprocess.run(
-                    ["git", "fetch", "--all"], cwd=repo_path, check=True
+                    ["git", "fetch", remote_name], cwd=repo_path, check=True
                 )
 
-                # Reset to remote branch, accepting all remote changes
-                subprocess.run(
-                    ["git", "reset", "--hard", "HEAD"],
-                    cwd=repo_path,
-                    check=True,
-                )
-                subprocess.run(
-                    ["git", "pull", "-X", "theirs"], cwd=repo_path, check=True
-                )
-
-                logger.info(
-                    "Successfully resolved conflicts in \
-                        favor of remote repository"
-                )
-                return True
+                if favor_remote:
+                    # Reset to remote version
+                    reset_cmd = [
+                        "git",
+                        "reset",
+                        "--hard",
+                        f"{remote_name}/{remote_branch}",
+                    ]
+                    subprocess.run(reset_cmd, cwd=repo_path, check=True)
+                    logger.info("Reset to remote version successfully")
+                else:
+                    # Try merge with strategy option
+                    merge_cmd = [
+                        "git",
+                        "merge",
+                        f"{remote_name}/{remote_branch}",
+                        "-X",
+                        "theirs" if favor_remote else "ours",
+                    ]
+                    subprocess.run(merge_cmd, cwd=repo_path, check=True)
+                    logger.info("Merge with conflict resolution completed")
             except subprocess.CalledProcessError as e:
-                raise GitError(f"Failed to resolve conflicts: {e}")
-
+                raise GitError(f"Conflict resolution failed: {e}")
     except Exception as e:
         raise GitError(f"An unexpected error occurred: {e}")
