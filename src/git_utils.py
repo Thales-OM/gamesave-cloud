@@ -289,3 +289,48 @@ def manage_git_remote(
         raise GitError("Failed to verify remote URL update")
     except subprocess.CalledProcessError as e:
         raise GitError(f"Git command failed: {e.stderr.strip()}")
+
+
+def create_orphan_branch(
+    repo_path: str, branch_name: str, initial_commit: bool = False
+) -> None:
+    """
+    Create an orphan Git branch.
+
+    Args:
+        repo_path: Path to Git repository
+        branch_name: Name for new orphan branch
+        initial_commit: Whether to create an initial empty commit
+
+    Returns:
+        None
+    """
+    try:
+        repo = Path(repo_path).absolute()
+
+        # Verify it's a Git repo
+        if not check_git_repository(path=str(repo)):
+            raise ValueError(f"{repo} is not a Git repository")
+
+        # Create orphan branch
+        subprocess.run(
+            ["git", "checkout", "--orphan", branch_name], cwd=repo, check=True
+        )
+
+        # Clean working directory
+        subprocess.run(
+            ["git", "rm", "-rf", "."],
+            cwd=repo,
+            check=True,
+            stderr=subprocess.DEVNULL,
+        )
+
+        if initial_commit:
+            # Create empty initial commit
+            subprocess.run(
+                ["git", "commit", "--allow-empty", "-m", "Initial commit"],
+                cwd=repo,
+                check=True,
+            )
+    except subprocess.CalledProcessError as e:
+        raise GitError(f"Git command failed: {e.stderr}")
