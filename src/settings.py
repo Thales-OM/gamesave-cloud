@@ -6,6 +6,7 @@ from src.constants import (
     DEFAULT_LIMIT_SAVE_INTERVALS,
     DEFAULT_SAVE_COOLDOWN_SEC,
     DEFAULT_MASTER_BRANCH,
+    DEFAULT_REMOTE_NAME,
     METADATA_DIRECTORY_PATH,
     METADATA_FILENAME,
     DAEMON_PORT_RANGE_MIN,
@@ -34,6 +35,7 @@ class MetadataSettings(BaseSettings):
 
 class GitSettings(BaseSettings):
     master_branch: str = DEFAULT_MASTER_BRANCH
+    remote_name: str = DEFAULT_REMOTE_NAME
 
 
 class LoggingSettings(BaseSettings):
