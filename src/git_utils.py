@@ -3,6 +3,7 @@ import subprocess
 import platform
 from pathlib import Path
 from src.exceptions import GitError
+from src.constants import DEFAULT_MASTER_BRANCH
 from src.logger import LoggerFactory
 
 logger = LoggerFactory.getLogger(__name__)
@@ -66,10 +67,35 @@ def check_git_repository(path: str) -> bool:
         return False
 
 
-def create_git_repository(path: str) -> None:
-    # Create a new git repository
-    subprocess.run(["git", "-C", path, "init"], check=True)
-    logger.info(f"Created a new git repository at {path}.")
+def create_git_repository(
+    repo_path: str, branch_name: str = DEFAULT_MASTER_BRANCH
+) -> None:
+    """
+    Initialize a Git repository with a specific branch name.
+
+    Args:
+        repo_path: Path where to create the repository
+        branch_name: Name for the initial branch (default: "master")
+
+    Returns:
+        None
+    """
+    try:
+        path = Path(repo_path).absolute()
+        path.mkdir(parents=True, exist_ok=True)
+
+        subprocess.run(
+            ["git", "init", "--initial-branch", branch_name],
+            cwd=path,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        logger.info(
+            f"Initialized Git repository at {path} with branch '{branch_name}'"
+        )
+    except subprocess.CalledProcessError as e:
+        raise GitError(f"Failed to initialize repository: {e}")
 
 
 def create_master_branch(path: str, master_branch: str = "master") -> None:
