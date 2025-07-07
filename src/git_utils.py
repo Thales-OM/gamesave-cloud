@@ -102,91 +102,87 @@ def git_pull_with_conflict_resolution(
     Returns:
         None
     """
-    try:
-        repo_path = Path(repo_dir).absolute()
+    repo_path = Path(repo_dir).absolute()
 
-        # Validate directory and repository
-        if not repo_path.is_dir():
-            raise FileNotFoundError(
-                f"Error: {repo_dir} is not a valid directory"
-            )
-        if not check_git_repository(path=str(repo_dir)):
-            raise GitError(f"Error: {repo_dir} is not a git repository")
+    # Validate directory and repository
+    if not repo_path.is_dir():
+        raise FileNotFoundError(f"Error: {repo_dir} is not a valid directory")
+    if not check_git_repository(path=str(repo_dir)):
+        raise GitError(f"Error: {repo_dir} is not a git repository")
 
-        # Get current branch if not specified
+    # Get current branch if not specified
+    if not local_branch:
+        result = subprocess.run(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            cwd=repo_path,
+            capture_output=True,
+            text=True,
+        )
+        local_branch = result.stdout.strip()
         if not local_branch:
-            result = subprocess.run(
-                ["git", "rev-parse", "--abbrev-ref", "HEAD"],
-                cwd=repo_path,
-                capture_output=True,
-                text=True,
-            )
-            local_branch = result.stdout.strip()
-            if not local_branch:
-                raise GitError("Error: Could not determine current branch")
+            raise GitError("Error: Could not determine current branch")
 
-        # Get remote branch if not specified
+    # Get remote branch if not specified
+    if not remote_branch:
+        result = subprocess.run(
+            ["git", "config", "--get", f"branch.{local_branch}.merge"],
+            cwd=repo_path,
+            capture_output=True,
+            text=True,
+        )
+        remote_branch = result.stdout.strip().replace("refs/heads/", "")
         if not remote_branch:
-            result = subprocess.run(
-                ["git", "config", "--get", f"branch.{local_branch}.merge"],
-                cwd=repo_path,
-                capture_output=True,
-                text=True,
-            )
-            remote_branch = result.stdout.strip().replace("refs/heads/", "")
-            if not remote_branch:
-                remote_branch = local_branch  # Fallback to same name as local
+            remote_branch = local_branch  # Fallback to same name as local
 
-        logger.info(
-            f"Pulling {remote_name}/{remote_branch} into {local_branch}..."
+    logger.info(
+        f"Pulling {remote_name}/{remote_branch} into {local_branch}..."
+    )
+
+    # First try normal pull
+    try:
+        pull_cmd = [
+            "git",
+            "pull",
+            remote_name,
+            f"{remote_branch}:{local_branch}",
+        ]
+        subprocess.run(pull_cmd, cwd=repo_path, check=True)
+        logger.info("Git pull completed successfully")
+        return
+    except subprocess.CalledProcessError as e:
+        logger.warning(
+            f"Normal pull failed, attempting conflict resolution...\n{e}"
         )
 
-        # First try normal pull
         try:
-            pull_cmd = [
-                "git",
-                "pull",
-                remote_name,
-                f"{remote_branch}:{local_branch}",
-            ]
-            subprocess.run(pull_cmd, cwd=repo_path, check=True)
-            logger.info("Git pull completed successfully")
-        except subprocess.CalledProcessError as e:
-            logger.warning(
-                f"Normal pull failed, attempting conflict resolution...\n{e}"
+            # Fetch updates
+            subprocess.run(
+                ["git", "fetch", remote_name], cwd=repo_path, check=True
             )
 
-            try:
-                # Fetch updates
-                subprocess.run(
-                    ["git", "fetch", remote_name], cwd=repo_path, check=True
-                )
-
-                if favor_remote:
-                    # Reset to remote version
-                    reset_cmd = [
-                        "git",
-                        "reset",
-                        "--hard",
-                        f"{remote_name}/{remote_branch}",
-                    ]
-                    subprocess.run(reset_cmd, cwd=repo_path, check=True)
-                    logger.info("Reset to remote version successfully")
-                else:
-                    # Try merge with strategy option
-                    merge_cmd = [
-                        "git",
-                        "merge",
-                        f"{remote_name}/{remote_branch}",
-                        "-X",
-                        "theirs" if favor_remote else "ours",
-                    ]
-                    subprocess.run(merge_cmd, cwd=repo_path, check=True)
-                    logger.info("Merge with conflict resolution completed")
-            except subprocess.CalledProcessError as e:
-                raise GitError(f"Conflict resolution failed: {e}")
-    except Exception as e:
-        raise GitError(f"An unexpected error occurred: {e}")
+            if favor_remote:
+                # Reset to remote version
+                reset_cmd = [
+                    "git",
+                    "reset",
+                    "--hard",
+                    f"{remote_name}/{remote_branch}",
+                ]
+                subprocess.run(reset_cmd, cwd=repo_path, check=True)
+                logger.info("Reset to remote version successfully")
+            else:
+                # Try merge with strategy option
+                merge_cmd = [
+                    "git",
+                    "merge",
+                    f"{remote_name}/{remote_branch}",
+                    "-X",
+                    "theirs" if favor_remote else "ours",
+                ]
+                subprocess.run(merge_cmd, cwd=repo_path, check=True)
+                logger.info("Merge with conflict resolution completed")
+        except subprocess.CalledProcessError as e:
+            raise GitError(f"Conflict resolution failed: {e}")
 
 
 def manage_git_remote(
