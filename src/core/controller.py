@@ -10,7 +10,6 @@ from src.models.metadata import Metadata
 from src.common.singleton import Singleton
 from src.logger import LoggerFactory
 
-
 logger = LoggerFactory.getLogger(__name__)
 
 
@@ -30,7 +29,7 @@ class DirectoryController(metaclass=Singleton):
 
     def __init__(self, metadata: Optional[Metadata]):
         if self.status != Status.NOT_INITIALIZED:
-            logger.warning("Tred to reinitialize the Controller. Skipping.")
+            logger.warning("Tried to reinitialize the Controller. Skipping.")
             return
 
         self.metadata = metadata
