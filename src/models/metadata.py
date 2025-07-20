@@ -8,9 +8,7 @@ from src.models.remote import GitRemote
 from src.models.version import Version
 from src.logger import LoggerFactory
 from src.constants import APP_VERSION
-from src.common.singleton import Singleton
 from src.exceptions import MetadataError
-
 
 logger = LoggerFactory.getLogger(__name__)
 
@@ -18,7 +16,7 @@ logger = LoggerFactory.getLogger(__name__)
 CONFIG_FIELDS = {"version", "directories", "remote"}
 
 
-class Metadata(BaseSettings, metaclass=Singleton):
+class Metadata(BaseSettings):
     version: Version = APP_VERSION
     directories: List[TrackedDirectory] = []
     remote: Optional[GitRemote] = None
