@@ -31,7 +31,10 @@ class GitEngine(SaveEngine):
 
     def __init__(self, game: GameEntry, repos_root: str):
         super().__init__(game=game, repos_root=repos_root)
-        self.repo_path: str = os.path.join(repos_root, f"{game.slug}.git")
+        self.repo_path: str = os.path.join(
+            os.fspath(repos_root), f"{game.slug}.git"
+        )
+        self.work_tree: str = os.fspath(game.path)
         self.branch: str = game.default_branch or "main"
         self._git = Git()
         # execute() passes argv straight to Popen - include
@@ -51,7 +54,7 @@ class GitEngine(SaveEngine):
             "--git-dir",
             self.repo_path,
             "--work-tree",
-            self.game.path,
+            self.work_tree,
             "-c",
             f"user.name={GIT_AUTHOR_NAME}",
             "-c",
@@ -95,7 +98,7 @@ class GitEngine(SaveEngine):
 
             # Un-bare the repo and bind it to the live folder.
             self._run_repo_only("config", "core.bare", "false")
-            self._run_repo_only("config", "core.worktree", self.game.path)
+            self._run_repo_only("config", "core.worktree", self.work_tree)
             # Binary saves must never be line-ending mangled.
             self._run_repo_only("config", "core.autocrlf", "false")
             # Auto-gc may grab the object db while the game is running.
@@ -148,6 +151,7 @@ class GitEngine(SaveEngine):
     def list_snapshots(
         self, branch: Optional[str] = None, limit: Optional[int] = None
     ) -> List[SnapshotInfo]:
+        self.init()
         target = branch or self.current_branch()
         args = ["log", f"--format={LOG_FORMAT}", target]
         if limit:
@@ -156,6 +160,11 @@ class GitEngine(SaveEngine):
             out = self._run(*args)
         except GitEngineError as ex:
             if "unknown revision" in str(ex).lower():
+                # Fresh repo without any commits yet: nothing to list.
+                try:
+                    self._run("rev-parse", "--verify", "--quiet", "HEAD")
+                except GitEngineError:
+                    return []
                 raise BranchError(
                     f"No snapshots found for branch '{target}'"
                 ) from ex
@@ -248,7 +257,19 @@ class GitEngine(SaveEngine):
                 "symbolic-ref", "--short", "HEAD"
             ).strip()
         except GitEngineError:
-            return "DETACHED"
+            # Unborn HEAD (no commits yet) or detached state: fall back
+            # to the configured default branch instead of a bogus ref.
+            head = os.path.join(self.repo_path, "HEAD")
+            if not os.path.exists(head):
+                return self.branch
+            try:
+                with open(head) as f:
+                    content = f.read().strip()
+                if content.startswith("ref:"):
+                    return content.split("ref: refs/heads/")[-1]
+            except OSError:
+                pass
+            return self.branch
 
     def create_branch(
         self, name: str, from_snapshot: Optional[str] = None

@@ -222,8 +222,17 @@ def create_app(state: AppState) -> FastAPI:
     @app.post("/remotes")
     def add_remote(req: models.CreateRemoteRequest):
         s = get_state()
+        from src.exceptions import StorageNotRegisteredError
         from src.models.remote_config import RemoteConfig
+        from src.storage import get_storage_class
 
+        try:
+            get_storage_class(req.type)
+        except StorageNotRegisteredError:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unknown storage type: {req.type}",
+            )
         remote = RemoteConfig(
             name=req.name, type=req.type, options=req.options
         )

@@ -117,6 +117,8 @@ def resolve_exe_save_dir(exe_path: Path) -> Optional[DetectedGame]:
     from src.detection.registry import get_providers
 
     exe_path = exe_path.resolve()
+    if not exe_path.is_file():
+        return None
     for provider in get_providers():
         finder = getattr(provider, "find_by_exe", None)
         if finder is None:

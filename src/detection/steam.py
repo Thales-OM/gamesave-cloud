@@ -108,25 +108,32 @@ class SteamProvider(DetectionProvider):
         return games
 
     def find_games(self) -> List[DetectedGame]:
+        root = find_steam_root()
+        if root is None:
+            return []
+        return self.find_games_from_root(root)
+
+    def find_games_from_root(self, root: Path) -> List[DetectedGame]:
         out = []
-        for app in self.installed_games():
-            install_dir = (
-                Path(app["library"])
-                / "steamapps"
-                / "common"
-                / app["installdir"]
-            )
-            save_dir = self.find_save_dir(install_dir) or install_dir
-            exe = self._first_exe(install_dir)
-            out.append(
-                DetectedGame(
-                    name=self.guess_display_name(app["name"]),
-                    path=save_dir,
-                    source=self.name,
-                    exe_path=exe,
-                    platform_hint="steam",
+        for lib in steam_libraries(root):
+            for app in read_appmanifests(lib):
+                install_dir = (
+                    Path(app["library"])
+                    / "steamapps"
+                    / "common"
+                    / app["installdir"]
                 )
-            )
+                save_dir = self.find_save_dir(install_dir) or install_dir
+                exe = self._first_exe(install_dir)
+                out.append(
+                    DetectedGame(
+                        name=self.guess_display_name(app["name"]),
+                        path=save_dir,
+                        source=self.name,
+                        exe_path=exe,
+                        platform_hint="steam",
+                    )
+                )
         return out
 
     def find_by_exe(self, exe_path: Path):
