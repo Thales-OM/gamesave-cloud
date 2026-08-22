@@ -1,16 +1,16 @@
-class AvailablePortNotFoundError(BaseException):
+class AvailablePortNotFoundError(Exception):
     """
     No available port was found to host the daemon process server
     """
 
 
-class ControllerCallError(BaseException):
+class ControllerCallError(Exception):
     """
     An invalid request was made to the Controller
     """
 
 
-class MetadataError(BaseException):
+class MetadataError(Exception):
     """
     Base class for errors during Metadata initialization/operations
     """
@@ -22,7 +22,7 @@ class MetadataMigrationError(MetadataError):
     """
 
 
-class EngineError(BaseException):
+class EngineError(Exception):
     """
     Base class for errors raised by save engines
     """
@@ -52,7 +52,7 @@ class BranchError(EngineError):
     """
 
 
-class StorageError(BaseException):
+class StorageError(Exception):
     """
     Base class for remote storage backend errors
     """
@@ -76,19 +76,19 @@ class StorageConnectionError(StorageError):
     """
 
 
-class DetectionError(BaseException):
+class DetectionError(Exception):
     """
     Base class for platform detection errors
     """
 
 
-class DaemonConnectionError(BaseException):
+class DaemonConnectionError(Exception):
     """
     CLI could not reach the daemon (not running, stale runtime file, etc.)
     """
 
 
-class GameNotFoundError(BaseException):
+class GameNotFoundError(Exception):
     """
     Referenced game entry does not exist in metadata
     """

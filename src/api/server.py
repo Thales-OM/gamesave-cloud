@@ -180,6 +180,169 @@ def create_app(state: AppState) -> FastAPI:
             raise HTTPException(status_code=404, detail=str(ex))
         return {"message": f"Switched to '{req.branch}'"}
 
+    # ---- remotes ------------------------------------------------------------
+
+    @app.get("/remotes")
+    def list_remotes():
+        s = get_state()
+
+        out = []
+        for r in s.metadata.remotes:
+            out.append(
+                {
+                    "id": r.id,
+                    "name": r.name,
+                    "type": r.type,
+                    "options": {
+                        k: v
+                        for k, v in r.options.items()
+                        if "token" not in k
+                        and "secret" not in k
+                        and "password" not in k
+                        and "key" not in k
+                    },
+                    "used_by": [
+                        g.name for g in s.metadata.games if g.remote_id == r.id
+                    ],
+                },
+            )
+        return {"remotes": out}
+
+    @app.post("/remotes")
+    def add_remote(req: models.CreateRemoteRequest):
+        s = get_state()
+        from src.models.remote_config import RemoteConfig
+
+        remote = RemoteConfig(
+            name=req.name, type=req.type, options=req.options
+        )
+        try:
+            s.metadata.add_remote(remote)
+            s.metadata.save()
+        except MetadataError as ex:
+            raise HTTPException(status_code=409, detail=str(ex))
+        return {"message": f"Remote '{remote.name}' added", "id": remote.id}
+
+    @app.delete("/remotes/{name_or_id}")
+    def remove_remote(name_or_id: str):
+        s = get_state()
+        try:
+            removed = s.metadata.remove_remote(name_or_id)
+        except MetadataError as ex:
+            raise HTTPException(status_code=404, detail=str(ex))
+        for game in s.metadata.games:
+            if game.remote_id == removed.id:
+                game.remote_id = None
+        s.metadata.save()
+        return {"message": f"Remote '{removed.name}' removed"}
+
+    @app.post("/games/{name_or_id}/remote")
+    def assign_remote(name_or_id: str, req: models.AssignRemoteRequest):
+        s = get_state()
+        game = _require_game(s, name_or_id)
+        if req.remote_id is not None:
+            remote = s.metadata.find_remote(req.remote_id)
+            if not remote:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Remote not found: {req.remote_id}",
+                )
+        game.remote_id = req.remote_id
+        s.metadata.save()
+        label = req.remote_id or "none"
+        return {"message": f"Remote for '{game.name}' set to {label}"}
+
+    @app.post("/remotes/test")
+    def test_remote(req: models.TestRemoteRequest):
+        s = get_state()
+        if req.id:
+            result = s.sync.test_remote(req.id)
+        else:
+            from src.models.game import GameEntry
+            from src.models.remote_config import RemoteConfig
+            from src.storage import create_storage
+
+            dummy = (
+                s.metadata.games[0]
+                if s.metadata.games
+                else GameEntry(name="_probe", path=".")
+            )
+            storage = create_storage(
+                config=RemoteConfig(
+                    id="_test",
+                    name="_test",
+                    type=req.type,
+                    options=req.options,
+                ),
+                game=dummy,
+            )
+            result = {"type": req.type}
+            try:
+                storage.test_connection()
+                result["reachable"] = True
+            except Exception as ex:
+                result["reachable"] = False
+                result["error"] = str(ex)
+        if not result.get("reachable"):
+            raise HTTPException(status_code=400, detail=result)
+        return result
+
+    @app.post("/remotes/{name_or_id}/status")
+    def remote_status(name_or_id: str):
+        s = get_state()
+        remote = s.metadata.find_remote(name_or_id)
+        if not remote:
+            raise HTTPException(
+                status_code=404, detail=f"Remote not found: {name_or_id}"
+            )
+        results = {}
+        for game in s.metadata.games:
+            if game.remote_id == remote.id:
+                results[game.name] = s.sync.status_for_game(game)
+        return {"remote": remote.name, "games": results}
+
+    # ---- push / pull---------------------------------------------------------
+
+    @app.post("/push")
+    def push(req: models.PushRequest):
+        s = get_state()
+        targets = (
+            [_require_game(s, req.game)]
+            if req.game
+            else s.sync.games_with_remotes()
+        )
+        if req.game and not targets:
+            raise HTTPException(status_code=400, detail="No games matched")
+        done = {}
+        for game in targets:
+            artifact = s.sync.push_game(game, override_remote=req.remote)
+            done[game.name] = artifact
+        return {"message": f"Pushed {len(done)} game(s)", "artifacts": done}
+
+    @app.post("/pull")
+    def pull(req: models.PullRequest):
+        s = get_state()
+        targets = (
+            [_require_game(s, req.game)]
+            if req.game
+            else s.sync.games_with_remotes()
+        )
+        changed = {}
+        for game in targets:
+            changed[game.name] = s.sync.pull_game(
+                game, override_remote=req.remote
+            )
+        updated = [n for n, c in changed.items() if c]
+        unchanged = [n for n, c in changed.items() if not c]
+        return {
+            "message": (
+                f"Pulled: {len(updated)} updated, "
+                f"{len(unchanged)} up to date"
+            ),
+            "updated": updated,
+            "unchanged": unchanged,
+        }
+
     return app
 
 

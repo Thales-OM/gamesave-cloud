@@ -39,12 +39,16 @@ class SnapshotService:
         cooldown_sec: int = 300,
         limit_intervals: bool = True,
         game_resolver: Optional[Callable[[str], Optional[GameEntry]]] = None,
+        on_snapshotted: Optional[
+            Callable[[GameEntry, SnapshotInfo], None]
+        ] = None,
     ):
         self.repos_root = repos_root
         self.quiet_period_sec = max(1, int(quiet_period_sec))
         self.cooldown_sec = max(0, int(cooldown_sec))
         self.limit_intervals = limit_intervals
         self._resolver = game_resolver
+        self._on_snapshotted = on_snapshotted
         self._lock = threading.RLock()
         self._states: Dict[str, _GameState] = {}
         self._engines: Dict[str, SaveEngine] = {}
@@ -134,6 +138,13 @@ class SnapshotService:
             logger.info(
                 f"[{game.name}] Snapshotted {info.short_id}: {info.message}"
             )
+            if self._on_snapshotted is not None:
+                try:
+                    self._on_snapshotted(game, info)
+                except Exception as ex:
+                    logger.error(
+                        f"[{game.name}] post-snapshot hook failed: {ex}"
+                    )
         return info
 
     def notify_external_snapshot(self, game_id: str) -> None:

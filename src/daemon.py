@@ -21,6 +21,7 @@ from src.api.state import AppState
 from src.constants import DAEMON_HOST
 from src.core.controller import DirectoryController
 from src.core.snapshot_service import SnapshotService
+from src.core.sync_service import SyncService
 from src.logger import LoggerFactory
 from src.models.metadata import Metadata
 from src.settings import settings
@@ -66,11 +67,21 @@ def build_app():
         limit_intervals=settings.save_state.limit_save_intervals,
         game_resolver=metadata.find_game,
     )
+    sync = SyncService(metadata=metadata, engine_resolver=service.engine_for)
+
+    def on_snapshotted(game, info):
+        if game.auto_push:
+            logger.info(f"[{game.name}] Auto-push enabled; pushing")
+            sync.push_async(game)
+
+    service._on_snapshotted = on_snapshotted
     controller = DirectoryController(
         metadata=metadata, snapshot_service=service
     )
     controller.start_all()
-    state = AppState(metadata=metadata, controller=controller, service=service)
+    state = AppState(
+        metadata=metadata, controller=controller, service=service, sync=sync
+    )
     return create_app(state), controller
 
 

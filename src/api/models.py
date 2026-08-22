@@ -35,6 +35,10 @@ class CreateRemoteRequest(BaseModel):
     options: Dict[str, Any] = {}
 
 
+class AssignRemoteRequest(BaseModel):
+    remote_id: Optional[str] = None  # null clears assignment
+
+
 class TestRemoteRequest(BaseModel):
     type: str = ""
     options: Dict[str, Any] = {}

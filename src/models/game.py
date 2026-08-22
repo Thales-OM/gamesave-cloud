@@ -50,9 +50,13 @@ class GameEntry(BaseModel):
 
     @property
     def slug(self) -> str:
-        """Filesystem-safe identifier used for the vault repo directory."""
+        """
+        Stable filesystem-safe identifier derived from the name alone -
+        MUST be identical across machines so they converge on the same
+        remote path. Local uniqueness is enforced by add_game().
+        """
         slug = re.sub(r"[^a-zA-Z0-9._-]+", "_", self.name).strip("._-")
-        return f"{slug or 'game'}-{self.id[:8]}"
+        return (slug or "game").lower()
 
     @staticmethod
     def create_name_auto(path: str) -> str:

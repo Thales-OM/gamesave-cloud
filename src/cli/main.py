@@ -77,8 +77,10 @@ def daemon_status():
 
 def register_commands() -> None:
     from src.cli.games import register as register_games
+    from src.cli.remote import register as register_remote
 
     register_games(cli)
+    register_remote(cli)
 
 
 register_commands()
