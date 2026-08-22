@@ -1,4 +1,3 @@
-from pydantic import BaseModel
 from typing import Any, Tuple
 import re
 
@@ -19,7 +18,9 @@ class Version(str):
         if not self.version_pattern.match(version_str):
             raise ValueError(f"Invalid version format: {version_str}")
         self.version_str = version_str
-        self.version_tuple = tuple(int(part) for part in version_str.split("."))
+        self.version_tuple = tuple(
+            int(part) for part in version_str.split(".")
+        )
 
     def __str__(self) -> str:
         return self.version_str
@@ -89,4 +90,6 @@ class Version(str):
             return v
         if isinstance(v, str):
             return cls(v)
-        raise TypeError(f"Version must be a string or Version instance, got {type(v)}")
+        raise TypeError(
+            f"Version must be a string or Version instance, got {type(v)}"
+        )

@@ -1,123 +1,173 @@
 import json
 import os
-from pydantic import DirectoryPath
-from typing import List, Dict, Any, Optional
-from pydantic_settings import BaseSettings
-from src.models.tracked_directory import TrackedDirectory
-from src.models.remote import GitRemote
-from src.models.version import Version
+import tempfile
+from typing import Any, Dict, List, Optional
+
+from pydantic import BaseModel, Field
+from src.constants import APP_VERSION, METADATA_SCHEMA_VERSION
+from src.exceptions import MetadataError, MetadataMigrationError
 from src.logger import LoggerFactory
-from src.constants import APP_VERSION
-from src.exceptions import MetadataError
+from src.models.game import GameEntry
+from src.models.remote_config import RemoteConfig
 
 logger = LoggerFactory.getLogger(__name__)
 
+CONFIG_FIELDS = {"version", "games", "remotes"}
 
-CONFIG_FIELDS = {"version", "directories", "remote"}
 
+class Metadata(BaseModel):
+    """
+    Central state of the application: tracked games and configured remotes.
 
-class Metadata(BaseSettings):
-    version: Version = APP_VERSION
-    directories: List[TrackedDirectory] = []
-    remote: Optional[GitRemote] = None
-    path: str
-    directory_paths: Dict[DirectoryPath, TrackedDirectory] = dict()
-    directory_names: Dict[str, TrackedDirectory] = dict()
+    Schema version 0.2.0. Migrates transparently from the 0.1.x layout
+    (directories + git remote).
+    """
 
-    def __init__(self, path: str):
+    version: str = METADATA_SCHEMA_VERSION
+    games: List[GameEntry] = Field(default_factory=list)
+    remotes: List[RemoteConfig] = Field(default_factory=list)
+
+    # Runtime-only, not persisted
+    path: str = ""
+
+    @classmethod
+    def load(cls, path: str) -> "Metadata":
+        """Load metadata from disk; migrate legacy schemas if needed."""
         path = os.path.abspath(path)
+        data: Optional[Dict[str, Any]] = None
+        if os.path.exists(path):
+            try:
+                with open(path, "r") as file:
+                    data = json.load(file)
+            except Exception as ex:
+                logger.warning(
+                    f"Failed to read metadata at {path}, starting fresh: {ex}"
+                )
+                data = None
 
-        data = None
-        try:
-            data = Metadata.load_from_disk(path=path)
-        except FileNotFoundError:
-            logger.warning(
-                "Failed to load metadata from disk. \
-                    File not found. Initializing empty metadata."
-            )
-        except Exception as ex:
-            logger.warning(
-                f"Failed to load metadata from disk for unknown reason. \
-                    Initializing empty metadata. Detail: \n{ex}"
-            )
+        migrated = False
+        if data and "directories" in data:
+            try:
+                data = cls._migrate_v1(data)
+                migrated = True
+            except Exception as ex:
+                raise MetadataMigrationError(
+                    f"Failed to migrate metadata schema at {path}: {ex}"
+                ) from ex
 
-        if data:
-            super().__init__(path=path, **data)
-        else:
-            super().__init__(path=path)
-            self.save_to_disk()  # Save new created Metadata
-
-    def model_post_init(self, context: Any, /) -> None:
-        self.directory_paths = {dir.path: dir for dir in self.directories}
-        self.directory_names = {dir.name: dir for dir in self.directories}
+        meta = cls(path=path, **(data or {}))
+        if migrated:
+            logger.info("Metadata migrated from 0.1.x to %s", APP_VERSION)
+        meta.save()
+        return meta
 
     @staticmethod
-    def load_from_disk(path: str) -> Dict[str, Any]:
-        with open(path, "r") as file:
-            data = json.load(file)
-        return data
+    def _migrate_v1(data: Dict[str, Any]) -> Dict[str, Any]:
+        """Convert the 0.1.x {directories, remote} layout to v2."""
+        logger.info("Migrating metadata from schema 0.1.x")
+        games = []
+        for directory in data.get("directories", []):
+            entry = {
+                "name": directory.get("name"),
+                "path": directory.get("path"),
+                "auto_snapshot": True,
+            }
+            games.append({k: v for k, v in entry.items() if v is not None})
 
-    def save_to_disk(self) -> None:
-        with open(self.path, "w") as file:
-            json.dump(self.model_dump(include=CONFIG_FIELDS), file, indent=4)
-
-    def add_directory(self, dir: TrackedDirectory) -> None:
-        if dir.path in self.directory_paths:
-            raise MetadataError(
-                f"Attempted to add an already present \
-                           directory to Metadata: {dir.path}. Skipping."
-            )
-        if dir.name in self.directory_names:
-            raise MetadataError(
-                f"Attempted to add a directory with a duplicate \
-                           name to Metadata: {dir.name}. Skipping."
-            )
-
-        self.directories.append(dir)
-        self.directory_paths[dir.path] = dir
-        self.directory_names[dir.name] = dir
-
-    def delete_directory(
-        self, name: Optional[str], path: Optional[DirectoryPath]
-    ) -> None:
-        if not (name or path):
-            raise MetadataError(
-                "Neither name nor path were \
-                                provided to Metadata.delete_directory"
-            )
-        if name and path:
+        if data.get("remote"):
             logger.warning(
-                f"Passed both name and path to \
-                    Metadata.delete_directory: ({name}, {path}).\
-                        Prioritizing name."
+                "Legacy git remote found in metadata. Git-hosting remotes are "
+                "no longer auto-migrated - re-add it via `gsc remote add`."
             )
 
-        if name and name not in self.directory_names:
-            raise MetadataError("Tried to delete name not present in Metadata")
-        if not name and path not in self.directory_paths:
-            raise MetadataError("Tried to delete path not present in Metadata")
+        return {
+            "version": METADATA_SCHEMA_VERSION,
+            "games": games,
+            "remotes": [],
+        }
 
-        for idx, dir in enumerate(self.directories):
-            if name and dir.name == name:
-                self.directories.pop(idx)
-                self.directory_names.pop(name)
-                self.directory_paths.pop(dir.path)
-                return
-            if path and dir.path == path:
-                self.directories.pop(idx)
-                self.directory_names.pop(dir.name)
-                self.directory_paths.pop(path)
-                return
-
-        raise MetadataError(
-            "Failed to delete a directory given valid args: ({name}, {path})"
+    def save(self) -> None:
+        """Atomically persist metadata (write tmp file, then replace)."""
+        if not self.path:
+            raise MetadataError("Metadata path is not set")
+        os.makedirs(os.path.dirname(self.path), exist_ok=True)
+        payload = self.model_dump(include=CONFIG_FIELDS, exclude_none=True)
+        fd, tmp_path = tempfile.mkstemp(
+            dir=os.path.dirname(self.path), suffix=".tmp"
         )
+        try:
+            with os.fdopen(fd, "w") as file:
+                json.dump(payload, file, indent=4, default=str)
+            os.replace(tmp_path, self.path)
+        except Exception:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
+            raise
 
-    def get_directory_by_path(self, path: str) -> Optional[TrackedDirectory]:
-        return self.directory_paths.get(path, None)
+    # ---- game lookups -------------------------------------------------
 
-    def get_directory_by_name(self, name: str) -> Optional[TrackedDirectory]:
-        return self.directory_names.get(name, None)
+    def add_game(self, game: GameEntry) -> None:
+        for existing in self.games:
+            if existing.id == game.id:
+                raise MetadataError(f"Game with id already present: {game.id}")
+            if existing.path == game.path:
+                raise MetadataError(f"Path already tracked: {game.path}")
+            if existing.name.lower() == game.name.lower():
+                raise MetadataError(f"Name already in use: {game.name}")
+        self.games.append(game)
 
-    def get_all_directories(self) -> List[TrackedDirectory]:
-        return self.directories
+    def remove_game(self, name_or_id: str) -> GameEntry:
+        game = self.find_game(name_or_id)
+        if not game:
+            raise MetadataError(f"Game not found: {name_or_id}")
+        self.games.remove(game)
+        return game
+
+    def find_game(self, name_or_id: str) -> Optional[GameEntry]:
+        for game in self.games:
+            if game.id == name_or_id or game.slug == name_or_id:
+                return game
+        for game in self.games:
+            if game.name.lower() == name_or_id.strip().lower():
+                return game
+        return None
+
+    def find_game_by_path(self, path: str) -> Optional[GameEntry]:
+        abspath = os.path.abspath(path)
+        for game in self.games:
+            if game.path == abspath:
+                return game
+        return None
+
+    # ---- remote lookups -----------------------------------------------
+
+    def add_remote(self, remote: RemoteConfig) -> None:
+        for existing in self.remotes:
+            if existing.id == remote.id:
+                raise MetadataError(f"Remote id already present: {remote.id}")
+            if existing.name.lower() == remote.name.lower():
+                raise MetadataError(
+                    f"Remote name already in use: {remote.name}"
+                )
+        self.remotes.append(remote)
+
+    def remove_remote(self, name_or_id: str) -> RemoteConfig:
+        remote = self.find_remote(name_or_id)
+        if not remote:
+            raise MetadataError(f"Remote not found: {name_or_id}")
+        self.remotes.remove(remote)
+        return remote
+
+    def find_remote(self, name_or_id: str) -> Optional[RemoteConfig]:
+        for remote in self.remotes:
+            if remote.id == name_or_id:
+                return remote
+        for remote in self.remotes:
+            if remote.name.lower() == name_or_id.strip().lower():
+                return remote
+        return None
+
+    def remote_for_game(self, game: GameEntry) -> Optional[RemoteConfig]:
+        if not game.remote_id:
+            return None
+        return self.find_remote(game.remote_id)

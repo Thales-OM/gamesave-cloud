@@ -9,7 +9,6 @@ from src.settings import settings
 from src.logger import LoggerFactory
 from src.models.tracked_directory import TrackedDirectory
 
-
 logger = LoggerFactory.getLogger(__name__)
 
 

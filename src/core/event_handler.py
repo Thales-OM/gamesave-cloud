@@ -2,7 +2,6 @@ from watchdog.events import FileSystemEventHandler
 from src.models.tracked_directory import TrackedDirectory
 from src.logger import LoggerFactory
 
-
 logger = LoggerFactory.getLogger(__name__)
 
 
