@@ -124,11 +124,16 @@ class Metadata(BaseModel):
         return game
 
     def find_game(self, name_or_id: str) -> Optional[GameEntry]:
+        needle = name_or_id.strip().lower()
         for game in self.games:
             if game.id == name_or_id or game.slug == name_or_id:
                 return game
         for game in self.games:
-            if game.name.lower() == name_or_id.strip().lower():
+            if game.name.lower() == needle:
+                return game
+        for game in self.games:
+            # Partial match as a convenience (unique prefix wins).
+            if needle in game.name.lower():
                 return game
         return None
 
