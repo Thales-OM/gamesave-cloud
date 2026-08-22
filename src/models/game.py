@@ -53,3 +53,7 @@ class GameEntry(BaseModel):
         """Filesystem-safe identifier used for the vault repo directory."""
         slug = re.sub(r"[^a-zA-Z0-9._-]+", "_", self.name).strip("._-")
         return f"{slug or 'game'}-{self.id[:8]}"
+
+    @staticmethod
+    def create_name_auto(path: str) -> str:
+        return os.path.basename(os.path.normpath(path))
