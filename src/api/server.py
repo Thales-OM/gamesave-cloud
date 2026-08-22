@@ -82,6 +82,17 @@ def create_app(state: AppState) -> FastAPI:
             raise HTTPException(status_code=400, detail=str(ex))
         return {"message": "Game added", "game": game.model_dump(mode="json")}
 
+    @app.get("/detect")
+    def detect_games(source: Optional[str] = None):
+        from src.detection import detect_all
+
+        games = [
+            g.model_dump(mode="json")
+            for g in detect_all()
+            if source is None or g.source == source
+        ]
+        return {"games": games}
+
     @app.get("/games")
     def list_games():
         s = get_state()

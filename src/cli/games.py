@@ -23,13 +23,33 @@ def _maybe_json(ctx, data):
     "-n", "--name", default=None, help="Display name (defaults to folder name)"
 )
 @click.option(
+    "--exe",
+    "exe_path",
+    type=click.Path(exists=True, dir_okay=False),
+    default=None,
+    help="Resolve the save folder from a game executable",
+)
+@click.option(
     "--no-autosnapshot",
     is_flag=True,
     help="Disable automatic snapshots for this game",
 )
 @click.pass_context
-def add(ctx, path, name, no_autosnapshot):
+def add(ctx, path, name, exe_path, no_autosnapshot):
     """Start tracking a game save folder."""
+    if exe_path is not None:
+        from pathlib import Path
+
+        from src.detection import resolve_exe_save_dir
+
+        hit = resolve_exe_save_dir(Path(exe_path))
+        if hit is None:
+            raise click.ClickException(
+                f"Could not resolve a save folder for '{exe_path}'"
+            )
+        path = str(hit.path)
+        name = name or hit.name
+        click.echo(f"Resolved save folder: {path}")
     client = get_client()
     result = client.add_game(
         path=path, name=name, auto_snapshot=not no_autosnapshot
@@ -61,6 +81,33 @@ def games(ctx):
         click.echo("No games tracked yet. Add one: gsc add <path>")
         return
     print_table(["NAME", "ID", "PATH", "AUTO", "REMOTE"], rows)
+
+
+@click.command("detect")
+@click.option(
+    "-s",
+    "--source",
+    type=click.Choice(["steam", "epic", "heuristic"]),
+    default=None,
+    help="Only show results from this provider",
+)
+@click.pass_context
+def detect(ctx, source):
+    """Discover game save folders on this machine."""
+    client = get_client()
+    data = client.get("/detect", params={"source": source} if source else None)
+    games = data["games"]
+    if _maybe_json(ctx, {"games": games}):
+        return
+    if not games:
+        click.echo("No save folders detected.")
+        return
+    print_table(
+        ["NAME", "SOURCE", "PATH"],
+        [(g["name"], g["source"], g["path"]) for g in games],
+    )
+    click.echo("")
+    click.echo("Track one with: gsc add <path>")
 
 
 @click.command("remove")
@@ -257,3 +304,4 @@ def register(group) -> None:
     group.add_command(restore)
     group.add_command(branch)
     group.add_command(switch)
+    group.add_command(detect)
