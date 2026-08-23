@@ -1,4 +1,4 @@
-from typing import List
+from typing import Any, List, Optional, Tuple
 
 from requests import request, Response, RequestException
 from requests.utils import unquote  # type: ignore
@@ -44,25 +44,21 @@ class WebDAVStorage(BundleStorage):
     def _url(self, remote_name: str) -> str:
         return f"{self.base_url}/{remote_name}"
 
-    def _auth(self):
+    def _auth(self) -> Optional[Tuple[str, str]]:
         user = self.secret("username")
         password = self.secret("password")
         return (user, password) if user else None
 
-    def _request(self, method: str, url: str, **kwargs) -> Response:
+    def _request(self, method: str, url: str, **kwargs: Any) -> Response:
         try:
-            return request(
-                method, url, auth=self._auth(), timeout=60, **kwargs
-            )
+            return request(method, url, auth=self._auth(), timeout=60, **kwargs)
         except RequestException as ex:
             raise StorageConnectionError(f"WebDAV error: {ex}") from ex
 
     @staticmethod
     def _check(resp: Response, action: str) -> None:
         if resp.status_code >= 300:
-            raise StorageError(
-                f"WebDAV {action} failed: HTTP {resp.status_code}"
-            )
+            raise StorageError(f"WebDAV {action} failed: HTTP {resp.status_code}")
 
     def _mkdirs(self, remote_name: str) -> None:
         """Create every missing collection along the artifact path."""
@@ -82,18 +78,14 @@ class WebDAVStorage(BundleStorage):
                 self._check(resp, "MKCOL")
 
     def test_connection(self) -> None:
-        resp = self._request(
-            "PROPFIND", self.base_url + "/", headers={"Depth": "0"}
-        )
+        resp = self._request("PROPFIND", self.base_url + "/", headers={"Depth": "0"})
         if resp.status_code in (207, 200):
             return
         if resp.status_code == 401:
             from src.exceptions import StorageAuthError
 
             raise StorageAuthError("WebDAV rejected the credentials")
-        raise StorageConnectionError(
-            f"WebDAV probe failed: HTTP {resp.status_code}"
-        )
+        raise StorageConnectionError(f"WebDAV probe failed: HTTP {resp.status_code}")
 
     def push(self, artifact_path: str, remote_name: str) -> None:
         self._mkdirs(remote_name)

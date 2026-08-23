@@ -3,7 +3,7 @@ import os
 import socket
 import tempfile
 import time
-from typing import List, Tuple
+from typing import Any, Dict, List, Optional, Tuple, cast
 
 from src.core.engine.base import SaveEngine
 from src.exceptions import StorageError
@@ -38,11 +38,7 @@ class BundleStorage(RemoteStorage):
         return "/".join(p for p in prefix.replace("\\", "/").split("/") if p)
 
     def _base(self) -> str:
-        base = (
-            f"{self.prefix}/{self.game.slug}"
-            if self.prefix
-            else self.game.slug
-        )
+        base = f"{self.prefix}/{self.game.slug}" if self.prefix else self.game.slug
         return base
 
     # ---- artifact naming -------------------------------------------------
@@ -74,8 +70,7 @@ class BundleStorage(RemoteStorage):
         }
         self._put_json(f"{base}/{self.LATEST_POINTER}", pointer)
         logger.info(
-            f"[{self.game.name}] Pushed history to "
-            f"{self.TYPE}:{base}/{name}"
+            f"[{self.game.name}] Pushed history to " f"{self.TYPE}:{base}/{name}"
         )
         return name
 
@@ -84,10 +79,8 @@ class BundleStorage(RemoteStorage):
         base = self._base()
         pointer = self._get_json(f"{base}/{self.LATEST_POINTER}")
         if not pointer or "artifact" not in pointer:
-            raise StorageError(
-                f"No pushed history found at {self.TYPE}:{base}"
-            )
-        name = pointer["artifact"]
+            raise StorageError(f"No pushed history found at {self.TYPE}:{base}")
+        name = cast(str, pointer["artifact"])
         head_before = self._head_commit(engine)
         fd, tmp_bundle = tempfile.mkstemp(suffix=".bundle")
         os.close(fd)
@@ -104,7 +97,7 @@ class BundleStorage(RemoteStorage):
         )
         return name, changed
 
-    def remote_status(self) -> dict:
+    def remote_status(self) -> Dict[str, Any]:
         base = self._base()
         status = dict(self.status())
         pointer = self._get_json(f"{base}/{self.LATEST_POINTER}")
@@ -115,7 +108,7 @@ class BundleStorage(RemoteStorage):
             status["artifacts"] = None
         return status
 
-    def _head_commit(self, engine: SaveEngine):
+    def _head_commit(self, engine: SaveEngine) -> Optional[str]:
         try:
             snaps = engine.list_snapshots(limit=1)
             return snaps[0].id if snaps else "empty"
@@ -135,7 +128,7 @@ class BundleStorage(RemoteStorage):
 
     # ---- pointer serialization-----------------------------------------------
 
-    def _put_json(self, remote_name: str, payload: dict) -> None:
+    def _put_json(self, remote_name: str, payload: Dict[str, Any]) -> None:
         fd, tmp = tempfile.mkstemp(suffix=".json")
         with os.fdopen(fd, "w", encoding="utf-8") as f:
             json.dump(payload, f)
@@ -144,7 +137,7 @@ class BundleStorage(RemoteStorage):
         finally:
             os.remove(tmp)
 
-    def _get_json(self, remote_name: str):
+    def _get_json(self, remote_name: str) -> Optional[Dict[str, Any]]:
         fd, tmp = tempfile.mkstemp(suffix=".json")
         os.close(fd)
         try:
@@ -153,7 +146,7 @@ class BundleStorage(RemoteStorage):
             except Exception:
                 return None
             with open(tmp, encoding="utf-8") as f:
-                return json.load(f)
+                return cast(Dict[str, Any], json.load(f))
         finally:
             if os.path.exists(tmp):
                 os.remove(tmp)

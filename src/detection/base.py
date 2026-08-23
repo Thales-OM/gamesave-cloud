@@ -2,7 +2,7 @@
 
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Tuple, cast
 
 from pydantic import BaseModel
 
@@ -16,7 +16,7 @@ class DetectedGame(BaseModel):
     exe_path: Optional[Path] = None
     platform_hint: Optional[str] = None
 
-    def key(self) -> tuple:
+    def key(self) -> Tuple[str, str]:
         return (self.name.lower(), str(self.path).lower())
 
 
@@ -64,9 +64,7 @@ class DetectionProvider(ABC):
             except OSError:
                 continue
             for child in children:
-                if child.is_dir() and child.name.lower() in (
-                    self.SAVE_DIR_NAMES
-                ):
+                if child.is_dir() and child.name.lower() in (self.SAVE_DIR_NAMES):
                     return child
         return None
 
@@ -124,7 +122,7 @@ def resolve_exe_save_dir(exe_path: Path) -> Optional[DetectedGame]:
         if finder is None:
             continue
         try:
-            hit = finder(exe_path)
+            hit = cast(Optional[DetectedGame], finder(exe_path))
         except Exception:  # noqa: BLE001
             continue
         if hit is not None:
@@ -143,7 +141,7 @@ def resolve_exe_save_dir(exe_path: Path) -> Optional[DetectedGame]:
     )
 
 
-def provider_for(path: Path):
+def provider_for(path: Path) -> Optional[DetectionProvider]:
     from src.detection.steam import SteamProvider
     from src.detection.epic import EpicProvider
 

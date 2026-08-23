@@ -56,7 +56,7 @@ class LoggingSettings(BaseSettings):
     )
 
     @model_validator(mode="after")
-    def validate_log_level(self):
+    def validate_log_level(self) -> "LoggingSettings":
         valid_levels = (
             "CRITICAL",
             "FATAL",
@@ -68,9 +68,7 @@ class LoggingSettings(BaseSettings):
             "NOTSET",
         )
         if self.log_level not in valid_levels:
-            raise ValueError(
-                f"Invalid log level. Must be one of {valid_levels}"
-            )
+            raise ValueError(f"Invalid log level. Must be one of {valid_levels}")
         return self
 
 

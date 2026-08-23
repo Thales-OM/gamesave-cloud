@@ -1,6 +1,7 @@
-from typing import List
+from typing import Any, Dict, List
 
 import requests
+from requests import Response
 
 from src.exceptions import (
     StorageAuthError,
@@ -45,10 +46,10 @@ class YandexDiskStorage(BundleStorage):
             self.option("prefix", "apps/gamesave-cloud")
         )
 
-    def _headers(self) -> dict:
+    def _headers(self) -> Dict[str, str]:
         return {"Authorization": f"OAuth {self.secret('token')}"}
 
-    def _api(self, method: str, path: str, **kwargs):
+    def _api(self, method: str, path: str, **kwargs: Any) -> Response:
         try:
             return requests.request(
                 method,
@@ -61,7 +62,7 @@ class YandexDiskStorage(BundleStorage):
             raise StorageConnectionError(f"Yandex.Disk error: {ex}") from ex
 
     @staticmethod
-    def _check(resp, action: str) -> None:
+    def _check(resp: Response, action: str) -> None:
         if resp.status_code == 401:
             raise StorageAuthError("Yandex.Disk rejected the OAuth token")
         if resp.status_code >= 300:
@@ -71,8 +72,7 @@ class YandexDiskStorage(BundleStorage):
             except ValueError:
                 pass
             raise StorageError(
-                f"Yandex.Disk {action} failed "
-                f"(HTTP {resp.status_code}): {detail}"
+                f"Yandex.Disk {action} failed " f"(HTTP {resp.status_code}): {detail}"
             )
 
     def test_connection(self) -> None:
@@ -97,13 +97,9 @@ class YandexDiskStorage(BundleStorage):
             try:
                 put = requests.put(href, data=data, timeout=600)
             except requests.RequestException as ex:
-                raise StorageConnectionError(
-                    f"Yandex.Disk upload error: {ex}"
-                ) from ex
+                raise StorageConnectionError(f"Yandex.Disk upload error: {ex}") from ex
         if put.status_code >= 300:
-            raise StorageError(
-                f"Yandex.Disk upload failed: HTTP {put.status_code}"
-            )
+            raise StorageError(f"Yandex.Disk upload failed: HTTP {put.status_code}")
 
     def pull(self, remote_name: str, local_path: str) -> None:
         full = self._disk_path(remote_name)
@@ -115,13 +111,9 @@ class YandexDiskStorage(BundleStorage):
         try:
             get = requests.get(href, stream=True, timeout=600)
         except requests.RequestException as ex:
-            raise StorageConnectionError(
-                f"Yandex.Disk download error: {ex}"
-            ) from ex
+            raise StorageConnectionError(f"Yandex.Disk download error: {ex}") from ex
         if get.status_code >= 300:
-            raise StorageError(
-                f"Yandex.Disk download failed: HTTP {get.status_code}"
-            )
+            raise StorageError(f"Yandex.Disk download failed: HTTP {get.status_code}")
         with open(local_path, "wb") as f:
             for chunk in get.iter_content(1024 * 512):
                 f.write(chunk)

@@ -53,9 +53,7 @@ class HeuristicProvider(DetectionProvider):
                         source=self.name,
                     )
                 )
-            elif depth < self.MAX_DEPTH and not child.name.startswith(
-                (".", "$")
-            ):
+            elif depth < self.MAX_DEPTH and not child.name.startswith((".", "$")):
                 found.extend(self._scan(child, depth + 1))
         return found
 

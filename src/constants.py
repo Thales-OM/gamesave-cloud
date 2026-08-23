@@ -5,9 +5,7 @@ def _default_app_data_root() -> str:
     if os.name == "nt":
         base = os.environ.get("LOCALAPPDATA") or os.path.expanduser("~")
         return os.path.join(base, "gamesave-cloud")
-    return os.path.join(
-        os.path.expanduser("~"), ".local", "share", "gamesave-cloud"
-    )
+    return os.path.join(os.path.expanduser("~"), ".local", "share", "gamesave-cloud")
 
 
 APP_NAME = "gamesave-cloud"

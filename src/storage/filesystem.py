@@ -79,6 +79,5 @@ class FilesystemStorage(BundleStorage):
         pattern = os.path.join(base, "*.bundle")
         root = os.path.abspath(self.root)
         return sorted(
-            os.path.relpath(p, root).replace("\\", "/")
-            for p in glob.glob(pattern)
+            os.path.relpath(p, root).replace("\\", "/") for p in glob.glob(pattern)
         )

@@ -108,9 +108,7 @@ class DirectoryController:
                 except Exception as ex:
                     logger.error(f"Failed to watch {game.path}: {ex}")
         self.status = "started"
-        logger.info(
-            f"Controller started with {len(self.observers)} watcher(s)"
-        )
+        logger.info(f"Controller started with {len(self.observers)} watcher(s)")
 
     def stop_all(self) -> None:
         if self.status == "stopped":

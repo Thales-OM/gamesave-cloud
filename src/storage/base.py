@@ -1,17 +1,31 @@
 from abc import ABC, abstractmethod
-from typing import Dict, List, Tuple, Any
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Dict,
+    List,
+    Tuple,
+    Type,
+    TypeVar,
+)
 
 from src.exceptions import StorageNotRegisteredError
 from src.models.game import GameEntry
 from src.models.remote_config import CredentialField, RemoteConfig
 
-STORAGE_REGISTRY: Dict[str, type] = {}
+if TYPE_CHECKING:
+    from src.core.engine.base import SaveEngine
+
+STORAGE_REGISTRY: Dict[str, Type["RemoteStorage"]] = {}
+
+R = TypeVar("R", bound="RemoteStorage")
 
 
-def register_storage(storage_type: str):
+def register_storage(storage_type: str) -> Callable[[Type[R]], Type[R]]:
     """Decorator adding a RemoteStorage implementation to the registry."""
 
-    def decorator(cls):
+    def decorator(cls: Type[R]) -> Type[R]:
         STORAGE_REGISTRY[storage_type] = cls
         cls.TYPE = storage_type
         return cls
@@ -19,7 +33,7 @@ def register_storage(storage_type: str):
     return decorator
 
 
-def get_storage_class(storage_type: str):
+def get_storage_class(storage_type: str) -> Type["RemoteStorage"]:
     cls = STORAGE_REGISTRY.get(storage_type)
     if not cls:
         raise StorageNotRegisteredError(
@@ -58,7 +72,7 @@ class RemoteStorage(ABC):
 
     # ---- configuration helpers -----------------------------------------
 
-    def option(self, name: str, default: Any = None):
+    def option(self, name: str, default: Any = None) -> Any:
         return self.config.options.get(name, default)
 
     def secret(self, name: str) -> str:
@@ -96,7 +110,26 @@ class RemoteStorage(ABC):
     def list_artifacts(self, prefix: str = "") -> List[str]:
         """Names of stored artifacts for this game."""
 
-    def status(self) -> dict:
+    def sync_push(self, engine: "SaveEngine") -> str:
+        """Serialize the engine's history and upload it.
+
+        Returns the artifact name. Backends that cannot transport
+        bundles raise NotImplementedError.
+        """
+        raise NotImplementedError(
+            f"Storage type '{self.TYPE}' does not support sync_push"
+        )
+
+    def sync_pull(self, engine: "SaveEngine") -> Tuple[str, bool]:
+        """Download and merge the newest remote history.
+
+        Returns (artifact_name, changed). See sync_push.
+        """
+        raise NotImplementedError(
+            f"Storage type '{self.TYPE}' does not support sync_pull"
+        )
+
+    def status(self) -> Dict[str, Any]:
         try:
             self.test_connection()
             reachable = True

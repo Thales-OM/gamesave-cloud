@@ -1,7 +1,7 @@
 import threading
 import time
 from datetime import datetime, timezone
-from typing import Callable, Dict, Optional
+from typing import Any, Callable, Dict, Optional
 
 from src.core.engine.base import SaveEngine, create_engine
 from src.exceptions import EngineError
@@ -15,7 +15,7 @@ logger = LoggerFactory.getLogger(__name__)
 class _GameState:
     """Per-game debounce state (owned by SnapshotService)."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.timer: Optional[threading.Timer] = None
         self.last_event: float = 0.0
         self.last_snapshot: float = 0.0
@@ -39,9 +39,7 @@ class SnapshotService:
         cooldown_sec: int = 300,
         limit_intervals: bool = True,
         game_resolver: Optional[Callable[[str], Optional[GameEntry]]] = None,
-        on_snapshotted: Optional[
-            Callable[[GameEntry, SnapshotInfo], None]
-        ] = None,
+        on_snapshotted: Optional[Callable[[GameEntry, SnapshotInfo], None]] = None,
     ):
         self.repos_root = repos_root
         self.quiet_period_sec = max(1, int(quiet_period_sec))
@@ -135,16 +133,12 @@ class SnapshotService:
             state = self._states.setdefault(game.id, _GameState())
             state.last_snapshot = time.monotonic()
         if info:
-            logger.info(
-                f"[{game.name}] Snapshotted {info.short_id}: {info.message}"
-            )
+            logger.info(f"[{game.name}] Snapshotted {info.short_id}: {info.message}")
             if self._on_snapshotted is not None:
                 try:
                     self._on_snapshotted(game, info)
                 except Exception as ex:
-                    logger.error(
-                        f"[{game.name}] post-snapshot hook failed: {ex}"
-                    )
+                    logger.error(f"[{game.name}] post-snapshot hook failed: {ex}")
         return info
 
     def notify_external_snapshot(self, game_id: str) -> None:
@@ -153,7 +147,7 @@ class SnapshotService:
             state = self._states.setdefault(game_id, _GameState())
             state.last_snapshot = time.monotonic()
 
-    def status_line(self, game: GameEntry) -> dict:
+    def status_line(self, game: GameEntry) -> Dict[str, Any]:
         with self._lock:
             state = self._states.get(game.id)
             last_event = (
@@ -171,7 +165,11 @@ class SnapshotService:
             }
 
 
-def snapshot_safely(service: SnapshotService, game: GameEntry, message):
+def snapshot_safely(
+    service: SnapshotService,
+    game: GameEntry,
+    message: Optional[str],
+) -> Optional[SnapshotInfo]:
     """Helper used by API layer so engine errors never kill handlers."""
     try:
         return service.snapshot_now(game, message=message)

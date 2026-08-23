@@ -40,9 +40,7 @@ def store_secret(remote_id: str, field_name: str, value: str) -> bool:
         logger.warning("keyring package not available - secret NOT persisted")
         return False
     try:
-        keyring.set_password(  # type: ignore
-            KEYRING_SERVICE, _scope(remote_id, field_name), value
-        )
+        keyring.set_password(KEYRING_SERVICE, _scope(remote_id, field_name), value)
         return True
     except KeyringError as ex:
         logger.warning(f"Could not store secret in keyring: {ex}")
@@ -53,9 +51,7 @@ def load_secret(remote_id: str, field_name: str) -> Optional[str]:
     if not _keyring_ok:
         return None
     try:
-        return keyring.get_password(  # type: ignore
-            KEYRING_SERVICE, _scope(remote_id, field_name)
-        )
+        return keyring.get_password(KEYRING_SERVICE, _scope(remote_id, field_name))
     except KeyringError as ex:
         logger.warning(f"Could not read secret from keyring: {ex}")
         return None
@@ -66,9 +62,7 @@ def delete_secrets(remote_id: str, fields: List[CredentialField]) -> None:
         return
     for field in fields:
         try:
-            keyring.delete_password(  # type: ignore
-                KEYRING_SERVICE, _scope(remote_id, field.name)
-            )
+            keyring.delete_password(KEYRING_SERVICE, _scope(remote_id, field.name))
         except Exception:
             pass
 
@@ -107,8 +101,7 @@ def resolve_credentials(
         if not value:
             if field.required:
                 raise StorageAuthError(
-                    f"Missing required credential '{field.name}' "
-                    f"({field.prompt})"
+                    f"Missing required credential '{field.name}' " f"({field.prompt})"
                 )
             continue
         logger.debug(f"Credential '{field.name}' resolved from {source}")

@@ -33,9 +33,7 @@ class GameEntry(BaseModel):
     remote_id: Optional[str] = None  # RemoteConfig this game pushes to
     auto_push: bool = False  # push to remote after every snapshot
     platform_hint: Optional[PlatformHint] = None
-    created_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc)
-    )
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     @field_validator("path", mode="after")
     @classmethod

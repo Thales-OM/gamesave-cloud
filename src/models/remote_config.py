@@ -14,9 +14,7 @@ class CredentialField(BaseModel):
 
     name: str
     prompt: str  # human label shown when prompting
-    secret: bool = (
-        False  # secrets are stored in the keyring, never in metadata
-    )
+    secret: bool = False  # secrets are stored in the keyring, never in metadata
     required: bool = True
 
 

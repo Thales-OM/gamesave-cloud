@@ -92,9 +92,7 @@ class Metadata(BaseModel):
             raise MetadataError("Metadata path is not set")
         os.makedirs(os.path.dirname(self.path), exist_ok=True)
         payload = self.model_dump(include=CONFIG_FIELDS, exclude_none=True)
-        fd, tmp_path = tempfile.mkstemp(
-            dir=os.path.dirname(self.path), suffix=".tmp"
-        )
+        fd, tmp_path = tempfile.mkstemp(dir=os.path.dirname(self.path), suffix=".tmp")
         try:
             with os.fdopen(fd, "w") as file:
                 json.dump(payload, file, indent=4, default=str)
@@ -140,7 +138,7 @@ class Metadata(BaseModel):
     def find_game_by_path(self, path: str) -> Optional[GameEntry]:
         abspath = os.path.abspath(path)
         for game in self.games:
-            if game.path == abspath:
+            if os.path.abspath(os.fspath(game.path)) == abspath:
                 return game
         return None
 
@@ -151,9 +149,7 @@ class Metadata(BaseModel):
             if existing.id == remote.id:
                 raise MetadataError(f"Remote id already present: {remote.id}")
             if existing.name.lower() == remote.name.lower():
-                raise MetadataError(
-                    f"Remote name already in use: {remote.name}"
-                )
+                raise MetadataError(f"Remote name already in use: {remote.name}")
         self.remotes.append(remote)
 
     def remove_remote(self, name_or_id: str) -> RemoteConfig:

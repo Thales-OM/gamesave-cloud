@@ -1,4 +1,4 @@
-from typing import List
+from typing import Any, List
 
 from src.exceptions import StorageConnectionError, StorageError
 from src.models.game import GameEntry
@@ -29,15 +29,9 @@ class S3Storage(BundleStorage):
             prompt="Endpoint URL (blank = AWS)",
             required=False,
         ),
-        CredentialField(
-            name="region", prompt="Region (optional)", required=False
-        ),
-        CredentialField(
-            name="prefix", prompt="Key prefix (optional)", required=False
-        ),
-        CredentialField(
-            name="access_key_id", prompt="Access key ID", secret=True
-        ),
+        CredentialField(name="region", prompt="Region (optional)", required=False),
+        CredentialField(name="prefix", prompt="Key prefix (optional)", required=False),
+        CredentialField(name="access_key_id", prompt="Access key ID", secret=True),
         CredentialField(
             name="secret_access_key", prompt="Secret access key", secret=True
         ),
@@ -48,10 +42,10 @@ class S3Storage(BundleStorage):
         if not self.option("bucket"):
             raise StorageError("s3 storage requires 'bucket' option")
 
-    def _client(self):
+    def _client(self) -> Any:
         try:
             # TODO: Add stubs
-            import boto3  # type: ignore[import-untyped]
+            import boto3
         except ImportError as ex:  # pragma: no cover
             raise StorageError(
                 "boto3 is not installed - install it to use s3 remotes"
@@ -68,9 +62,7 @@ class S3Storage(BundleStorage):
         try:
             self._client().head_bucket(Bucket=self.option("bucket"))
         except Exception as ex:
-            raise StorageConnectionError(
-                f"S3 bucket check failed: {ex}"
-            ) from ex
+            raise StorageConnectionError(f"S3 bucket check failed: {ex}") from ex
 
     def push(self, artifact_path: str, remote_name: str) -> None:
         try:

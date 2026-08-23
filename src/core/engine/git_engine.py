@@ -1,7 +1,7 @@
 import os
 import threading
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from git import Git, GitCommandError
 from src.constants import GIT_AUTHOR_EMAIL, GIT_AUTHOR_NAME
@@ -31,17 +31,13 @@ class GitEngine(SaveEngine):
 
     def __init__(self, game: GameEntry, repos_root: str):
         super().__init__(game=game, repos_root=repos_root)
-        self.repo_path: str = os.path.join(
-            os.fspath(repos_root), f"{game.slug}.git"
-        )
+        self.repo_path: str = os.path.join(os.fspath(repos_root), f"{game.slug}.git")
         self.work_tree: str = os.fspath(game.path)
         self.branch: str = game.default_branch or "main"
         self._git = Git()
         # execute() passes argv straight to Popen - include
         # the binary ourselves.
-        self._exe = (
-            getattr(self._git, "GIT_PYTHON_GIT_EXECUTABLE", None) or "git"
-        )
+        self._exe = getattr(self._git, "GIT_PYTHON_GIT_EXECUTABLE", None) or "git"
         # Reentrant: public methods take it and call other locked methods.
         self._lock = threading.RLock()
 
@@ -91,9 +87,7 @@ class GitEngine(SaveEngine):
             head_file = os.path.join(self.repo_path, "HEAD")
             if not os.path.exists(head_file):
                 os.makedirs(self.repo_path, exist_ok=True)
-                self._run_repo_only(
-                    "init", "--bare", "--quiet", self.repo_path
-                )
+                self._run_repo_only("init", "--bare", "--quiet", self.repo_path)
                 logger.info(f"Initialized vault repo at {self.repo_path}")
 
             # Un-bare the repo and bind it to the live folder.
@@ -106,15 +100,11 @@ class GitEngine(SaveEngine):
 
             if not self._head_is_valid():
                 # Point unborn HEAD at the default branch.
-                self._run_repo_only(
-                    "symbolic-ref", "HEAD", f"refs/heads/{self.branch}"
-                )
+                self._run_repo_only("symbolic-ref", "HEAD", f"refs/heads/{self.branch}")
 
     def _head_is_valid(self) -> bool:
         try:
-            out = self._run_repo_only(
-                "rev-parse", "--verify", "--quiet", "HEAD"
-            )
+            out = self._run_repo_only("rev-parse", "--verify", "--quiet", "HEAD")
             return bool(out.strip())
         except GitEngineError:
             return False
@@ -128,10 +118,7 @@ class GitEngine(SaveEngine):
     def snapshot(
         self, message: Optional[str] = None, allow_empty: bool = False
     ) -> Optional[SnapshotInfo]:
-        message = (
-            message
-            or f"snapshot: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
-        )
+        message = message or f"snapshot: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
         with self._lock:
             self.init()
             self._run("add", "--all")
@@ -165,9 +152,7 @@ class GitEngine(SaveEngine):
                     self._run("rev-parse", "--verify", "--quiet", "HEAD")
                 except GitEngineError:
                     return []
-                raise BranchError(
-                    f"No snapshots found for branch '{target}'"
-                ) from ex
+                raise BranchError(f"No snapshots found for branch '{target}'") from ex
             raise
         kept = (ln for ln in out.splitlines() if ln.strip())
         return [self._parse_log_line(line) for line in kept]
@@ -232,9 +217,7 @@ class GitEngine(SaveEngine):
             parts[2],
             parts[3],
         )
-        timestamp = (
-            datetime.fromisoformat(date_str) if date_str else datetime.now()
-        )
+        timestamp = datetime.fromisoformat(date_str) if date_str else datetime.now()
         return SnapshotInfo(
             id=commit_hash,
             message=subject,
@@ -253,9 +236,7 @@ class GitEngine(SaveEngine):
 
     def current_branch(self) -> str:
         try:
-            return self._run_repo_only(
-                "symbolic-ref", "--short", "HEAD"
-            ).strip()
+            return self._run_repo_only("symbolic-ref", "--short", "HEAD").strip()
         except GitEngineError:
             # Unborn HEAD (no commits yet) or detached state: fall back
             # to the configured default branch instead of a bogus ref.
@@ -271,17 +252,13 @@ class GitEngine(SaveEngine):
                 pass
             return self.branch
 
-    def create_branch(
-        self, name: str, from_snapshot: Optional[str] = None
-    ) -> None:
+    def create_branch(self, name: str, from_snapshot: Optional[str] = None) -> None:
         if name in self.list_branches():
             raise BranchError(f"Branch already exists: {name}")
         start = from_snapshot or "HEAD"
         self.init()
         self._run_repo_only("branch", name, start)
-        logger.info(
-            f"[{self.game.name}] Created branch '{name}' from {start[:8]}"
-        )
+        logger.info(f"[{self.game.name}] Created branch '{name}' from {start[:8]}")
 
     def switch_branch(
         self, name: str, auto_snapshot_message: Optional[str] = None
@@ -298,18 +275,13 @@ class GitEngine(SaveEngine):
             self.init()
             if self.has_changes():
                 saved = auto_snapshot_message or (
-                    f"auto: pending changes before "
-                    f"switching from '{current}'"
+                    f"auto: pending changes before " f"switching from '{current}'"
                 )
                 self._run("add", "--all")
                 self._run("commit", "--quiet", "-m", saved)
-                logger.info(
-                    f"[{self.game.name}] Auto-snapshot before branch switch"
-                )
+                logger.info(f"[{self.game.name}] Auto-snapshot before branch switch")
             self._run("checkout", name)
-            logger.info(
-                f"[{self.game.name}] Switched branch '{current}' -> '{name}'"
-            )
+            logger.info(f"[{self.game.name}] Switched branch '{current}' -> '{name}'")
 
     # ---- transport support --------------------------------------------------
 
@@ -324,9 +296,7 @@ class GitEngine(SaveEngine):
             if os.path.exists(tmp_path):
                 os.remove(tmp_path)
             raise
-        logger.debug(
-            f"[{self.game.name}] Exported history bundle to {output_path}"
-        )
+        logger.debug(f"[{self.game.name}] Exported history bundle to {output_path}")
 
     def import_history(self, artifact_path: str) -> None:
         """
@@ -358,16 +328,11 @@ class GitEngine(SaveEngine):
                 "rev-parse", "--verify", f"refs/remotes/{staging}/{branch}"
             ).strip()
             if branch == current:
-                self._fast_forward_current(
-                    remote_id, source=f"'{artifact_path}'"
-                )
+                self._fast_forward_current(remote_id, source=f"'{artifact_path}'")
             else:
-                self._run_repo_only(
-                    "update-ref", f"refs/heads/{branch}", remote_id
-                )
+                self._run_repo_only("update-ref", f"refs/heads/{branch}", remote_id)
                 logger.info(
-                    f"[{self.game.name}] Updated branch "
-                    f"'{branch}' from artifact"
+                    f"[{self.game.name}] Updated branch " f"'{branch}' from artifact"
                 )
 
     def _fast_forward_current(self, target_id: str, source: str) -> bool:
@@ -378,9 +343,7 @@ class GitEngine(SaveEngine):
         ff_possible = False
         if local_id:
             try:
-                self._run_repo_only(
-                    "merge-base", "--is-ancestor", local_id, target_id
-                )
+                self._run_repo_only("merge-base", "--is-ancestor", local_id, target_id)
                 ff_possible = True
             except GitEngineError:
                 ff_possible = False
@@ -404,7 +367,7 @@ class GitEngine(SaveEngine):
             )
             return True
 
-    def _head_commit(self):
+    def _head_commit(self) -> Optional[str]:
         try:
             out = self._run("rev-parse", "--verify", "--quiet", "HEAD").strip()
             return out or None
@@ -413,7 +376,7 @@ class GitEngine(SaveEngine):
 
     # ---- status -------------------------------------------------------------
 
-    def status(self) -> Dict:
+    def status(self) -> Dict[str, Any]:
         self.init()
         changed_files = [
             line[3:]

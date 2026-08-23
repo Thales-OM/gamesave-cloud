@@ -2,6 +2,7 @@
 
 import os
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -11,14 +12,14 @@ from src.models.metadata import Metadata
 
 
 @pytest.fixture
-def vault(tmp_path) -> Path:
+def vault(tmp_path: Path) -> Path:
     repos = tmp_path / "repos"
     repos.mkdir()
     return repos
 
 
 @pytest.fixture
-def save_dir(tmp_path) -> Path:
+def save_dir(tmp_path: Path) -> Path:
     d = tmp_path / "saves" / "My Game"
     d.mkdir(parents=True)
     (d / "slot1.sav").write_text("v1")
@@ -26,23 +27,23 @@ def save_dir(tmp_path) -> Path:
 
 
 @pytest.fixture
-def game(save_dir) -> GameEntry:
+def game(save_dir: Path) -> GameEntry:
     return GameEntry(name="My Game", path=save_dir)
 
 
 @pytest.fixture
-def metadata(tmp_path, game):
-    md = Metadata.load(path=tmp_path / "metadata.json")
+def metadata(tmp_path: Path, game: GameEntry) -> Metadata:
+    md = Metadata.load(path=str(tmp_path / "metadata.json"))
     md.add_game(game)
     return md
 
 
 @pytest.fixture
-def engine(vault, game) -> GitEngine:
-    return GitEngine(game=game, repos_root=vault)
+def engine(vault: Path, game: GameEntry) -> GitEngine:
+    return GitEngine(game=game, repos_root=str(vault))
 
 
-def seed(path, name: str, content: str) -> Path:
+def seed(path: Path, name: str, content: str) -> Path:
     path = Path(path)
     path.mkdir(parents=True, exist_ok=True)
     f = path / name
@@ -50,11 +51,13 @@ def seed(path, name: str, content: str) -> Path:
     return f
 
 
-def env_no_keyring(monkeypatch):
+def env_no_keyring(monkeypatch: pytest.MonkeyPatch) -> None:
     """Force resolve_credentials to skip keyring lookups."""
-    monkeypatch.setattr(
-        "src.auth.credentials.load_secret", lambda *a, **k: None
-    )
+
+    def fake_load_secret(*args: Any, **kwargs: Any) -> None:
+        return None
+
+    monkeypatch.setattr("src.auth.credentials.load_secret", fake_load_secret)
 
 
 os.environ.setdefault("GSC_TEST", "1")

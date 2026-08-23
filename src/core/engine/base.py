@@ -1,17 +1,19 @@
 from abc import ABC, abstractmethod
-from typing import Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Type, TypeVar
 
 from src.exceptions import EngineNotRegisteredError
 from src.models.game import GameEntry
 from src.models.snapshot_info import SnapshotInfo
 
-ENGINE_REGISTRY = {}
+ENGINE_REGISTRY: Dict[str, Type["SaveEngine"]] = {}
+
+E = TypeVar("E", bound="SaveEngine")
 
 
-def register_engine(engine_type: str):
+def register_engine(engine_type: str) -> Callable[[Type[E]], Type[E]]:
     """Decorator adding a SaveEngine implementation to the registry."""
 
-    def decorator(cls):
+    def decorator(cls: Type[E]) -> Type[E]:
         ENGINE_REGISTRY[engine_type] = cls
         cls.ENGINE_TYPE = engine_type
         return cls
@@ -39,6 +41,8 @@ class SaveEngine(ABC):
     state inside the save folder itself - all internal state goes into
     repos_root.
     """
+
+    ENGINE_TYPE: str
 
     def __init__(self, game: GameEntry, repos_root: str):
         self.game = game
@@ -91,9 +95,7 @@ class SaveEngine(ABC):
         """Name of the active branch."""
 
     @abstractmethod
-    def create_branch(
-        self, name: str, from_snapshot: Optional[str] = None
-    ) -> None:
+    def create_branch(self, name: str, from_snapshot: Optional[str] = None) -> None:
         """Create a new branch (does NOT switch to it)."""
 
     @abstractmethod
@@ -116,5 +118,5 @@ class SaveEngine(ABC):
         """Merge a previously exported history artifact into local history."""
 
     @abstractmethod
-    def status(self) -> Dict:
+    def status(self) -> Dict[str, Any]:
         """Engine status summary for CLI/API display."""

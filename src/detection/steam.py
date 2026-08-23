@@ -2,7 +2,7 @@
 
 import os
 from pathlib import Path
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 from src.detection.base import DetectionProvider, DetectedGame
 from src.detection.registry import register_provider
@@ -29,9 +29,7 @@ def find_steam_root() -> Optional[Path]:
             except OSError:
                 continue
             try:
-                with winreg.OpenKey(
-                    winreg.HKEY_LOCAL_MACHINE, key_path
-                ) as key:
+                with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, key_path) as key:
                     raw, _ = winreg.QueryValueEx(key, value_name)
                     candidate = Path(raw)
                     if candidate.is_dir():
@@ -48,9 +46,7 @@ def steam_libraries(steam_root: Path) -> List[Path]:
     vdf_path = steam_root / "steamapps" / "libraryfolders.vdf"
     if vdf_path.is_file():
         try:
-            data = parse_vdf(
-                vdf_path.read_text(encoding="utf-8", errors="replace")
-            )
+            data = parse_vdf(vdf_path.read_text(encoding="utf-8", errors="replace"))
             folders = data.get("libraryfolders", {})
             for entry in folders.values():
                 if isinstance(entry, dict):
@@ -66,9 +62,9 @@ def steam_libraries(steam_root: Path) -> List[Path]:
     return unique
 
 
-def read_appmanifests(library: Path) -> List[dict]:
+def read_appmanifests(library: Path) -> List[Dict[str, Any]]:
     """Parse every appmanifest_*.acf in a library."""
-    apps: List[dict] = []
+    apps: List[Dict[str, Any]] = []
     apps_dir = library / "steamapps"
     if not apps_dir.is_dir():
         return apps
@@ -98,7 +94,7 @@ def read_appmanifests(library: Path) -> List[dict]:
 class SteamProvider(DetectionProvider):
     name = "steam"
 
-    def installed_games(self) -> List[dict]:
+    def installed_games(self) -> List[Dict[str, Any]]:
         root = find_steam_root()
         if root is None:
             return []
@@ -118,10 +114,7 @@ class SteamProvider(DetectionProvider):
         for lib in steam_libraries(root):
             for app in read_appmanifests(lib):
                 install_dir = (
-                    Path(app["library"])
-                    / "steamapps"
-                    / "common"
-                    / app["installdir"]
+                    Path(app["library"]) / "steamapps" / "common" / app["installdir"]
                 )
                 save_dir = self.find_save_dir(install_dir) or install_dir
                 exe = self._first_exe(install_dir)
@@ -136,15 +129,12 @@ class SteamProvider(DetectionProvider):
                 )
         return out
 
-    def find_by_exe(self, exe_path: Path):
+    def find_by_exe(self, exe_path: Path) -> Optional[DetectedGame]:
         """Match an executable against known Steam installs."""
         exe_path = exe_path.resolve()
         for app in self.installed_games():
             install_dir = (
-                Path(app["library"])
-                / "steamapps"
-                / "common"
-                / app["installdir"]
+                Path(app["library"]) / "steamapps" / "common" / app["installdir"]
             ).resolve()
             try:
                 exe_path.relative_to(install_dir)

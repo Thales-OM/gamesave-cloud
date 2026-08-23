@@ -1,10 +1,10 @@
 """Minimal VDF (Valve Data Format) parser for Steam files."""
 
 import re
-from typing import Dict
+from typing import Any, Dict
 
 
-def parse_vdf(text: str) -> Dict:
+def parse_vdf(text: str) -> Dict[str, Any]:
     """Parse a simple VDF document into nested dicts.
 
     Handles quoted and bare keys/values, braces and comments.
@@ -14,7 +14,7 @@ def parse_vdf(text: str) -> Dict:
         text,
         re.DOTALL,
     )
-    root: Dict = {}
+    root: Dict[str, Any] = {}
     stack = [root]
     pending_key = None
 
@@ -23,7 +23,7 @@ def parse_vdf(text: str) -> Dict:
         if open_brace:
             if pending_key is None:
                 continue
-            child: Dict = {}
+            child: Dict[str, Any] = {}
             top[pending_key] = child
             stack.append(child)
             pending_key = None

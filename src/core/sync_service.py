@@ -1,13 +1,14 @@
 import threading
-from typing import Dict, List, Optional, Any
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
+import src.storage  # noqa: F401
+from src.core.engine.base import SaveEngine
 from src.exceptions import MetadataError
 from src.logger import LoggerFactory
 from src.models.game import GameEntry
 from src.models.metadata import Metadata
 from src.models.remote_config import RemoteConfig
-from src.storage import create_storage
-from src.storage.base import RemoteStorage
+from src.storage.base import RemoteStorage, create_storage
 
 logger = LoggerFactory.getLogger(__name__)
 
@@ -21,9 +22,13 @@ class SyncService:
     Pushes of the same game are serialized to avoid interleaved uploads.
     """
 
-    def __init__(self, metadata: Metadata, engine_resolver):
+    def __init__(
+        self,
+        metadata: Metadata,
+        engine_resolver: Callable[[GameEntry], SaveEngine],
+    ) -> None:
         self.metadata = metadata
-        self.engine_resolver = engine_resolver  # game -> SaveEngine
+        self.engine_resolver = engine_resolver
 
     # ---- resolution ------------------------------------------------------
 
@@ -44,7 +49,7 @@ class SyncService:
 
     def _storage_and_engine(
         self, game: GameEntry, override_remote: Optional[str] = None
-    ) -> tuple:
+    ) -> Tuple[RemoteStorage, SaveEngine]:
         remote = self._remote_for(game, override_remote)
         storage = create_storage(config=remote, game=game)
         engine = self.engine_resolver(game)
@@ -58,9 +63,7 @@ class SyncService:
 
     # ---- operations ---------------------------------------------------------
 
-    def push_game(
-        self, game: GameEntry, override_remote: Optional[str] = None
-    ) -> str:
+    def push_game(self, game: GameEntry, override_remote: Optional[str] = None) -> str:
         """Snapshot-then-push; returns artifact name."""
         storage, engine = self._storage_and_engine(game, override_remote)
         with self._lock_for(game.id):
@@ -70,16 +73,14 @@ class SyncService:
         logger.info(f"[{game.name}] Push complete ({artifact})")
         return artifact
 
-    def pull_game(
-        self, game: GameEntry, override_remote: Optional[str] = None
-    ) -> bool:
+    def pull_game(self, game: GameEntry, override_remote: Optional[str] = None) -> bool:
         """Returns True when local history changed."""
         storage, engine = self._storage_and_engine(game, override_remote)
         with self._lock_for(game.id):
             _, changed = storage.sync_pull(engine)
         return changed
 
-    def test_remote(self, name_or_id: str) -> dict:
+    def test_remote(self, name_or_id: str) -> Dict[str, Any]:
         remote = self.metadata.find_remote(name_or_id)
         if not remote:
             raise MetadataError(f"Remote not found: {name_or_id}")
@@ -98,7 +99,7 @@ class SyncService:
             result["error"] = str(ex)
         return result
 
-    def status_for_game(self, game: GameEntry) -> Optional[dict]:
+    def status_for_game(self, game: GameEntry) -> Optional[Dict[str, Any]]:
         remote = self.metadata.remote_for_game(game)
         if not remote:
             return None
@@ -112,7 +113,7 @@ class SyncService:
     def push_async(self, game: GameEntry) -> None:
         """Fire-and-forget background push used after auto-snapshots."""
 
-        def worker():
+        def worker() -> None:
             try:
                 self.push_game(game)
             except Exception as ex:

@@ -3,7 +3,7 @@
 import json
 import os
 from pathlib import Path
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 from src.detection.base import DetectionProvider, DetectedGame
 from src.detection.registry import register_provider
@@ -11,9 +11,7 @@ from src.detection.registry import register_provider
 
 def epic_manifest_dir() -> Optional[Path]:
     base = Path(
-        os.path.expandvars(
-            r"%ProgramData%\Epic\EpicGamesLauncher\Data\Manifests"
-        )
+        os.path.expandvars(r"%ProgramData%\Epic\EpicGamesLauncher\Data\Manifests")
     )
     return base if base.is_dir() else None
 
@@ -22,7 +20,7 @@ def epic_manifest_dir() -> Optional[Path]:
 class EpicProvider(DetectionProvider):
     name = "epic"
 
-    def installed_games(self) -> List[dict]:
+    def installed_games(self) -> List[Dict[str, Any]]:
         manifest_dir = epic_manifest_dir()
         if manifest_dir is None:
             return []
@@ -63,7 +61,7 @@ class EpicProvider(DetectionProvider):
             )
         return out
 
-    def find_by_exe(self, exe_path: Path):
+    def find_by_exe(self, exe_path: Path) -> Optional[DetectedGame]:
         exe_path = exe_path.resolve()
         for app in self.installed_games():
             install_dir = app["install_dir"].resolve()

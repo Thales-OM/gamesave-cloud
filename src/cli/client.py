@@ -4,7 +4,7 @@ import socket
 import subprocess
 import sys
 import time
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional, cast
 
 import requests
 
@@ -16,9 +16,7 @@ IS_WINDOWS = os.name == "nt"
 
 
 def runtime_filepath() -> str:
-    return os.path.join(
-        settings.app_data_root, settings.daemon.runtime_filename
-    )
+    return os.path.join(settings.app_data_root, settings.daemon.runtime_filename)
 
 
 def read_runtime() -> Optional[Dict[str, Any]]:
@@ -33,7 +31,7 @@ def read_runtime() -> Optional[Dict[str, Any]]:
             # Stale descriptor from a crashed daemon.
             os.remove(path)
             return None
-        return data
+        return cast(Dict[str, Any], data)
     except (OSError, ValueError, json.JSONDecodeError):
         return None
 
@@ -84,14 +82,16 @@ class DaemonClient:
     # ---- generic ---------------------------------------------------------
 
     def request(
-        self, method: str, path: str, body=None, params=None
+        self,
+        method: str,
+        path: str,
+        body: Optional[Dict[str, Any]] = None,
+        params: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         url = self.base_url + path
-        resp = requests.request(
-            method, url, json=body, params=params, timeout=120
-        )
+        resp = requests.request(method, url, json=body, params=params, timeout=120)
         if resp.status_code >= 400:
-            detail = None
+            detail: Any = None
             try:
                 detail = resp.json().get("detail")
             except ValueError:
@@ -99,64 +99,88 @@ class DaemonClient:
             raise RuntimeError(
                 f"{method} {path} failed " f"({resp.status_code}): {detail}"
             )
-        return resp.json()
+        return cast(Dict[str, Any], resp.json())
 
-    def get(self, path: str, params=None):
+    def get(self, path: str, params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         return self.request("GET", path, params=params)
 
-    def post(self, path: str, body=None):
+    def post(self, path: str, body: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         return self.request("POST", path, body=body)
 
-    def delete(self, path: str):
+    def delete(self, path: str) -> Dict[str, Any]:
         return self.request("DELETE", path)
 
     # ---- typed helpers -----------------------------------------------------
 
-    def status(self):
+    def status(self) -> Dict[str, Any]:
         return self.get("/status")
 
-    def list_games(self):
-        return self.get("/games")["games"]
+    def list_games(self) -> List[Dict[str, Any]]:
+        return cast(List[Dict[str, Any]], self.get("/games")["games"])
 
-    def add_game(self, path: str, name=None, auto_snapshot=True):
+    def add_game(
+        self,
+        path: str,
+        name: Optional[str] = None,
+        auto_snapshot: bool = True,
+    ) -> Dict[str, Any]:
         return self.post(
             "/games",
             {"path": path, "name": name, "auto_snapshot": auto_snapshot},
         )
 
-    def remove_game(self, name_or_id: str):
+    def remove_game(self, name_or_id: str) -> Dict[str, Any]:
         return self.delete(f"/games/{name_or_id}")
 
-    def snapshot(self, name_or_id: str, message=None, allow_empty=False):
+    def snapshot(
+        self,
+        name_or_id: str,
+        message: Optional[str] = None,
+        allow_empty: bool = False,
+    ) -> Dict[str, Any]:
         return self.post(
             f"/games/{name_or_id}/snapshot",
             {"message": message, "allow_empty": allow_empty},
         )
 
-    def snapshots(self, name_or_id: str, branch=None, limit=50):
-        return self.get(
-            f"/games/{name_or_id}/snapshots",
-            params={"branch": branch, "limit": limit},
-        )["snapshots"]
+    def snapshots(
+        self,
+        name_or_id: str,
+        branch: Optional[str] = None,
+        limit: int = 50,
+    ) -> List[Dict[str, Any]]:
+        return cast(
+            List[Dict[str, Any]],
+            self.get(
+                f"/games/{name_or_id}/snapshots",
+                params={"branch": branch, "limit": limit},
+            )["snapshots"],
+        )
 
-    def restore(self, name_or_id: str, snapshot_id: str, hard=False):
+    def restore(
+        self, name_or_id: str, snapshot_id: str, hard: bool = False
+    ) -> Dict[str, Any]:
         return self.post(
             f"/games/{name_or_id}/restore",
             {"snapshot_id": snapshot_id, "hard": hard},
         )
 
-    def branches(self, name_or_id: str):
+    def branches(self, name_or_id: str) -> Dict[str, Any]:
         return self.get(f"/games/{name_or_id}/branches")
 
     def create_branch(
-        self, name_or_id: str, name: str, from_snapshot=None, switch=False
-    ):
+        self,
+        name_or_id: str,
+        name: str,
+        from_snapshot: Optional[str] = None,
+        switch: bool = False,
+    ) -> Dict[str, Any]:
         return self.post(
             f"/games/{name_or_id}/branches",
             {"name": name, "from_snapshot": from_snapshot, "switch": switch},
         )
 
-    def switch_branch(self, name_or_id: str, branch: str):
+    def switch_branch(self, name_or_id: str, branch: str) -> Dict[str, Any]:
         return self.post(f"/games/{name_or_id}/switch", {"branch": branch})
 
 
@@ -172,9 +196,7 @@ def start_daemon(port: Optional[int] = None, wait_seconds: int = 20) -> int:
     os.makedirs(settings.app_data_root, exist_ok=True)
     kwargs = {}
     if IS_WINDOWS:
-        flags = (
-            subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
-        )
+        flags = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
         kwargs["creationflags"] = flags
     else:
         kwargs["start_new_session"] = True
@@ -188,8 +210,7 @@ def start_daemon(port: Optional[int] = None, wait_seconds: int = 20) -> int:
             return port
         time.sleep(0.4)
     raise DaemonConnectionError(
-        f"Daemon did not come up within {wait_seconds}s. "
-        f"Check log: {log_path}"
+        f"Daemon did not come up within {wait_seconds}s. " f"Check log: {log_path}"
     )
 
 

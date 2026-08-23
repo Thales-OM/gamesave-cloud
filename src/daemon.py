@@ -13,8 +13,10 @@ import atexit
 import json
 import os
 import sys
+from typing import List, Optional, Tuple
 
 import uvicorn
+from fastapi import FastAPI
 
 from src.api.server import create_app
 from src.api.state import AppState
@@ -23,7 +25,9 @@ from src.core.controller import DirectoryController
 from src.core.snapshot_service import SnapshotService
 from src.core.sync_service import SyncService
 from src.logger import LoggerFactory
+from src.models.game import GameEntry
 from src.models.metadata import Metadata
+from src.models.snapshot_info import SnapshotInfo
 from src.settings import settings
 from src.utils import find_port
 
@@ -31,9 +35,7 @@ logger = LoggerFactory.getLogger(__name__)
 
 
 def runtime_filepath() -> str:
-    return os.path.join(
-        settings.app_data_root, settings.daemon.runtime_filename
-    )
+    return os.path.join(settings.app_data_root, settings.daemon.runtime_filename)
 
 
 def write_runtime_file(port: int) -> None:
@@ -58,7 +60,7 @@ def remove_runtime_file() -> None:
         logger.warning(f"Could not remove runtime file: {ex}")
 
 
-def build_app():
+def build_app() -> Tuple[FastAPI, DirectoryController]:
     metadata = Metadata.load(path=settings.metadata.filepath)
     service = SnapshotService(
         repos_root=settings.vault.repos_path,
@@ -69,15 +71,13 @@ def build_app():
     )
     sync = SyncService(metadata=metadata, engine_resolver=service.engine_for)
 
-    def on_snapshotted(game, info):
+    def on_snapshotted(game: GameEntry, info: SnapshotInfo) -> None:
         if game.auto_push:
             logger.info(f"[{game.name}] Auto-push enabled; pushing")
             sync.push_async(game)
 
     service._on_snapshotted = on_snapshotted
-    controller = DirectoryController(
-        metadata=metadata, snapshot_service=service
-    )
+    controller = DirectoryController(metadata=metadata, snapshot_service=service)
     controller.start_all()
     state = AppState(
         metadata=metadata, controller=controller, service=service, sync=sync
@@ -85,7 +85,7 @@ def build_app():
     return create_app(state), controller
 
 
-def main(argv=None) -> None:
+def main(argv: Optional[List[str]] = None) -> None:
     parser = argparse.ArgumentParser(description="gamesave-cloud daemon")
     parser.add_argument(
         "-p",

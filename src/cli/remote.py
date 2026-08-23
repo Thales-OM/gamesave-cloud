@@ -1,16 +1,18 @@
 import json
+from typing import Any, Optional, Tuple
 
 import click
 
+from src.cli.client import DaemonClient
 from src.cli.main import get_client
 from src.cli.output import print_table
 
 
-def _echo_json(data):
+def _echo_json(data: Any) -> None:
     click.echo(json.dumps(data, indent=2, default=str))
 
 
-def _maybe_json(ctx, data):
+def _maybe_json(ctx: click.Context, data: Any) -> bool:
     if ctx.obj and ctx.obj.get("as_json"):
         _echo_json(data)
         return True
@@ -18,20 +20,19 @@ def _maybe_json(ctx, data):
 
 
 @click.group("remote")
-def remote():
+def remote() -> None:
     """Configure and use remote storage destinations."""
 
 
 @remote.command("types")
-def types():
+def types() -> None:
     """List available storage backend types."""
-    from src.storage import STORAGE_REGISTRY
+    import src.storage  # noqa: F401
+    from src.storage.base import STORAGE_REGISTRY
 
     for name, cls in sorted(STORAGE_REGISTRY.items()):
         desc = (
-            cls.__doc__.strip().splitlines()[0]
-            if cls.__doc__ is not None
-            else "None"
+            cls.__doc__.strip().splitlines()[0] if cls.__doc__ is not None else "None"
         )
         click.echo(f"{name:12s} {desc}")
 
@@ -58,13 +59,21 @@ def types():
     help="Non-secret option as key=value (repeatable)",
 )
 @click.pass_context
-def add(ctx, type_name, name, game, assign_push, opts):
+def add(
+    ctx: click.Context,
+    type_name: str,
+    name: str,
+    game: Optional[str],
+    assign_push: bool,
+    opts: Tuple[str, ...],
+) -> None:
     """
     Register a remote destination. Missing options are prompted for;
     secrets are stored in the OS keyring.
     """
     from src.exceptions import StorageNotRegisteredError
-    from src.storage import get_storage_class
+    import src.storage  # noqa: F401
+    from src.storage.base import get_storage_class
 
     try:
         fields = get_storage_class(type_name).fields()
@@ -87,14 +96,10 @@ def add(ctx, type_name, name, game, assign_push, opts):
         persist_secrets=False,
     )
     secrets = {
-        f.name: resolved[f.name]
-        for f in fields
-        if f.secret and f.name in resolved
+        f.name: resolved[f.name] for f in fields if f.secret and f.name in resolved
     }
     options = {
-        f.name: resolved[f.name]
-        for f in fields
-        if not f.secret and f.name in resolved
+        f.name: resolved[f.name] for f in fields if not f.secret and f.name in resolved
     }
 
     client = get_client()
@@ -118,20 +123,18 @@ def add(ctx, type_name, name, game, assign_push, opts):
 
     if game:
         s = client.status()
-        match = next(
-            (g for g in s["games"] if g["name"].lower() == game.lower()), None
-        )
+        match = next((g for g in s["games"] if g["name"].lower() == game.lower()), None)
         if not match:
             raise click.ClickException(f"Game not found: {game}")
-        _set_game_remote(
-            client, match["id"], remote_id if assign_push else None
-        )
+        _set_game_remote(client, match["id"], remote_id if assign_push else None)
         click.echo(f"Assigned to '{match['name']}'")
 
     click.echo(f"Remote '{name}' added ({type_name}, id={remote_id})")
 
 
-def _set_game_remote(client, game_id, remote_id):
+def _set_game_remote(
+    client: DaemonClient, game_id: str, remote_id: Optional[str]
+) -> None:
     """Persist game.remote_id through the games API."""
     # The API does not expose partial updates; go through remove+add is
     # destructive - instead use dedicated endpoint below.
@@ -140,7 +143,7 @@ def _set_game_remote(client, game_id, remote_id):
 
 @remote.command("list")
 @click.pass_context
-def list_remotes(ctx):
+def list_remotes(ctx: click.Context) -> None:
     client = get_client()
     data = client.get("/remotes")["remotes"]
     if _maybe_json(ctx, {"remotes": data}):
@@ -157,10 +160,11 @@ def list_remotes(ctx):
 @remote.command("remove")
 @click.argument("name_or_id")
 @click.option("-y", "--yes", is_flag=True, help="Skip confirmation")
-def remove(name_or_id, yes):
+def remove(name_or_id: str, yes: bool) -> None:
     """Remove a remote and its stored secrets."""
     from src.auth.credentials import delete_secrets
-    from src.storage import get_storage_class
+    import src.storage  # noqa: F401
+    from src.storage.base import get_storage_class
 
     client = get_client()
     remotes = {r["id"]: r for r in client.get("/remotes")["remotes"]}
@@ -186,7 +190,7 @@ def remove(name_or_id, yes):
 
 @remote.command("test")
 @click.argument("name_or_id")
-def test(name_or_id):
+def test(name_or_id: str) -> None:
     client = get_client()
     try:
         result = client.request("POST", "/remotes/test", {"id": name_or_id})
@@ -198,7 +202,7 @@ def test(name_or_id):
 @remote.command("status")
 @click.argument("name_or_id")
 @click.pass_context
-def status(ctx, name_or_id):
+def status(ctx: click.Context, name_or_id: str) -> None:
     """Per-game sync state of a remote (latest artifact, counts)."""
     client = get_client()
     result = client.request("POST", f"/remotes/{name_or_id}/status", {})
@@ -218,7 +222,7 @@ def status(ctx, name_or_id):
 @remote.command("assign")
 @click.argument("game")
 @click.argument("name_or_id", required=False, default=None)
-def assign(game, name_or_id):
+def assign(game: str, name_or_id: Optional[str]) -> None:
     """Set (or clear, if omitted) the remote used by a game."""
     client = get_client()
     result = client.post(f"/games/{game}/remote", {"remote_id": name_or_id})
@@ -233,7 +237,7 @@ def assign(game, name_or_id):
     default=None,
     help="Override the game's configured remote",
 )
-def push(game, remote):
+def push(game: Optional[str], remote: Optional[str]) -> None:
     """Push history to remote storage (all synced games if GAME omitted)."""
     client = get_client()
     result = client.request("POST", "/push", {"game": game, "remote": remote})
@@ -250,14 +254,14 @@ def push(game, remote):
     default=None,
     help="Override the game's configured remote",
 )
-def pull(game, remote):
+def pull(game: Optional[str], remote: Optional[str]) -> None:
     """Pull history from remote storage into local snapshots."""
     client = get_client()
     result = client.request("POST", "/pull", {"game": game, "remote": remote})
     click.echo(result["message"])
 
 
-def register(group) -> None:
+def register(group: click.Group) -> None:
     group.add_command(remote)
     group.add_command(assign)
     group.add_command(push)

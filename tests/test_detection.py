@@ -1,6 +1,7 @@
 """Tests for detection providers and the VDF parser."""
 
 import json
+from pathlib import Path
 
 import pytest
 
@@ -9,25 +10,23 @@ from src.detection.vdf import parse_vdf
 
 
 class TestVdf:
-    def test_simple(self):
+    def test_simple(self) -> None:
         data = parse_vdf('"root"\n{\n"a"\t"1"\n"b" "2"\n}\n')
         assert data["root"]["a"] == "1"
         assert data["root"]["b"] == "2"
 
-    def test_nested(self):
+    def test_nested(self) -> None:
         data = parse_vdf('"outer"{\n"inner"{\n"k" "v"\n}\n}')
         assert data["outer"]["inner"]["k"] == "v"
 
-    def test_windows_paths(self):
+    def test_windows_paths(self) -> None:
         text = '"LibraryFolders"{\n"path" "C:\\Games\\Steam"\n}'
-        assert parse_vdf(text)["LibraryFolders"]["path"] == (
-            "C:\\Games\\Steam"
-        )
+        assert parse_vdf(text)["LibraryFolders"]["path"] == ("C:\\Games\\Steam")
 
 
 class TestSteamProvider:
     @pytest.fixture
-    def fake_steam(self, tmp_path):
+    def fake_steam(self, tmp_path: Path) -> Path:
         steamapps = tmp_path / "steamapps"
         common = steamapps / "common"
         game = common / "Test Game Alpha"
@@ -48,7 +47,7 @@ class TestSteamProvider:
         )
         return tmp_path
 
-    def test_find_games(self, fake_steam):
+    def test_find_games(self, fake_steam: Path) -> None:
         from src.detection.steam import SteamProvider
 
         sp = SteamProvider()
@@ -58,7 +57,7 @@ class TestSteamProvider:
         assert g.name == "test game alpha"
         assert g.platform_hint == "steam"
 
-    def test_save_dir_found(self, fake_steam):
+    def test_save_dir_found(self, fake_steam: Path) -> None:
         from src.detection.steam import SteamProvider
 
         sp = SteamProvider()
@@ -67,7 +66,9 @@ class TestSteamProvider:
 
 
 class TestEpicProvider:
-    def test_manifest_parsing(self, tmp_path, monkeypatch):
+    def test_manifest_parsing(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         from src.detection import epic as epic_mod
         from src.detection.epic import EpicProvider
 
@@ -92,7 +93,7 @@ class TestEpicProvider:
 
 
 class TestHeuristic:
-    def test_scan_finds_save_folders(self, tmp_path):
+    def test_scan_finds_save_folders(self, tmp_path: Path) -> None:
         from src.detection.heuristic import HeuristicProvider
 
         root = tmp_path / "My Games"
@@ -106,7 +107,7 @@ class TestHeuristic:
 
 
 class TestResolveExe:
-    def test_falls_back_to_parent(self, tmp_path):
+    def test_falls_back_to_parent(self, tmp_path: Path) -> None:
         from src.detection import resolve_exe_save_dir
 
         loose = tmp_path / "LooseGame"
@@ -117,7 +118,7 @@ class TestResolveExe:
         assert hit is not None
         assert hit.path == loose.resolve()
 
-    def test_missing_exe_returns_none(self, tmp_path):
+    def test_missing_exe_returns_none(self, tmp_path: Path) -> None:
         from src.detection import resolve_exe_save_dir
 
         missing = tmp_path / "nope.exe"
@@ -125,7 +126,7 @@ class TestResolveExe:
 
 
 class TestDetectedGame:
-    def test_dedupe_by_name_and_path(self):
+    def test_dedupe_by_name_and_path(self) -> None:
         a = DetectedGame(name="X", path="C:/a", source="steam")  # type: ignore
         b = DetectedGame(name="x", path="c:/A", source="heuristic")  # type: ignore
         c = DetectedGame(name="Y", path="C:/b", source="steam")  # type: ignore

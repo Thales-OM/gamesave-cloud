@@ -1,6 +1,6 @@
 import os
 import threading
-from typing import Optional, Dict, Any
+from typing import Any, Dict, List, Optional
 
 from fastapi import FastAPI, HTTPException
 
@@ -14,6 +14,7 @@ from src.exceptions import (
     SnapshotNotFoundError,
 )
 from src.logger import LoggerFactory
+from src.models.game import GameEntry
 
 logger = LoggerFactory.getLogger(__name__)
 
@@ -25,13 +26,13 @@ def create_app(state: AppState) -> FastAPI:
     # ---- health / lifecycle -------------------------------------------------
 
     @app.get("/health")
-    def health():
+    def health() -> Dict[str, Any]:
         return {"status": "ok", "version": __version__}
 
     @app.get("/status")
-    def status():
+    def status() -> Dict[str, Any]:
         s = get_state()
-        games = []
+        games: List[Dict[str, Any]] = []
         for game in s.metadata.games:
             try:
                 engine = s.service.engine_for(game)
@@ -55,11 +56,11 @@ def create_app(state: AppState) -> FastAPI:
         }
 
     @app.post("/shutdown")
-    def shutdown():
+    def shutdown() -> Dict[str, Any]:
         threading.Thread(target=_delayed_exit, daemon=True).start()
         return {"message": "Shutting down"}
 
-    def _delayed_exit():
+    def _delayed_exit() -> None:
         import time
 
         time.sleep(0.5)
@@ -68,7 +69,7 @@ def create_app(state: AppState) -> FastAPI:
     # ---- games --------------------------------------------------------------
 
     @app.post("/games")
-    def add_game(req: models.CreateGameRequest):
+    def add_game(req: models.CreateGameRequest) -> Dict[str, Any]:
         s = get_state()
         try:
             game = s.controller.add_game(
@@ -83,7 +84,7 @@ def create_app(state: AppState) -> FastAPI:
         return {"message": "Game added", "game": game.model_dump(mode="json")}
 
     @app.get("/detect")
-    def detect_games(source: Optional[str] = None):
+    def detect_games(source: Optional[str] = None) -> Dict[str, Any]:
         from src.detection import detect_all
 
         games = [
@@ -94,7 +95,7 @@ def create_app(state: AppState) -> FastAPI:
         return {"games": games}
 
     @app.get("/games")
-    def list_games():
+    def list_games() -> Dict[str, Any]:
         s = get_state()
         return {
             "games": [
@@ -110,7 +111,7 @@ def create_app(state: AppState) -> FastAPI:
         }
 
     @app.delete("/games/{name_or_id}")
-    def remove_game(name_or_id: str):
+    def remove_game(name_or_id: str) -> Dict[str, Any]:
         s = get_state()
         try:
             removed = s.controller.remove_game(name_or_id)
@@ -121,7 +122,7 @@ def create_app(state: AppState) -> FastAPI:
     # ---- snapshots ----------------------------------------------------------
 
     @app.post("/games/{name_or_id}/snapshot")
-    def snapshot_game(name_or_id: str, req: models.SnapshotRequest):
+    def snapshot_game(name_or_id: str, req: models.SnapshotRequest) -> Dict[str, Any]:
         s = get_state()
         game = _require_game(s, name_or_id)
         info = s.service.snapshot_now(
@@ -134,7 +135,7 @@ def create_app(state: AppState) -> FastAPI:
     @app.get("/games/{name_or_id}/snapshots")
     def list_snapshots(
         name_or_id: str, branch: Optional[str] = None, limit: int = 50
-    ):
+    ) -> Dict[str, Any]:
         s = get_state()
         game = _require_game(s, name_or_id)
         engine = s.service.engine_for(game)
@@ -142,7 +143,7 @@ def create_app(state: AppState) -> FastAPI:
         return {"snapshots": [x.model_dump(mode="json") for x in snaps]}
 
     @app.post("/games/{name_or_id}/restore")
-    def restore(name_or_id: str, req: models.RestoreRequest):
+    def restore(name_or_id: str, req: models.RestoreRequest) -> Dict[str, Any]:
         s = get_state()
         game = _require_game(s, name_or_id)
         engine = s.service.engine_for(game)
@@ -155,7 +156,7 @@ def create_app(state: AppState) -> FastAPI:
     # ---- branches -----------------------------------------------------------
 
     @app.get("/games/{name_or_id}/branches")
-    def branches(name_or_id: str):
+    def branches(name_or_id: str) -> Dict[str, Any]:
         s = get_state()
         game = _require_game(s, name_or_id)
         engine = s.service.engine_for(game)
@@ -165,7 +166,9 @@ def create_app(state: AppState) -> FastAPI:
         }
 
     @app.post("/games/{name_or_id}/branches")
-    def create_branch(name_or_id: str, req: models.CreateBranchRequest):
+    def create_branch(
+        name_or_id: str, req: models.CreateBranchRequest
+    ) -> Dict[str, Any]:
         s = get_state()
         game = _require_game(s, name_or_id)
         engine = s.service.engine_for(game)
@@ -181,7 +184,9 @@ def create_app(state: AppState) -> FastAPI:
         }
 
     @app.post("/games/{name_or_id}/switch")
-    def switch_branch(name_or_id: str, req: models.SwitchBranchRequest):
+    def switch_branch(
+        name_or_id: str, req: models.SwitchBranchRequest
+    ) -> Dict[str, Any]:
         s = get_state()
         game = _require_game(s, name_or_id)
         engine = s.service.engine_for(game)
@@ -194,10 +199,10 @@ def create_app(state: AppState) -> FastAPI:
     # ---- remotes ------------------------------------------------------------
 
     @app.get("/remotes")
-    def list_remotes():
+    def list_remotes() -> Dict[str, Any]:
         s = get_state()
 
-        out = []
+        out: List[Dict[str, Any]] = []
         for r in s.metadata.remotes:
             out.append(
                 {
@@ -220,11 +225,12 @@ def create_app(state: AppState) -> FastAPI:
         return {"remotes": out}
 
     @app.post("/remotes")
-    def add_remote(req: models.CreateRemoteRequest):
+    def add_remote(req: models.CreateRemoteRequest) -> Dict[str, Any]:
         s = get_state()
         from src.exceptions import StorageNotRegisteredError
         from src.models.remote_config import RemoteConfig
-        from src.storage import get_storage_class
+        import src.storage  # noqa: F401
+        from src.storage.base import get_storage_class
 
         try:
             get_storage_class(req.type)
@@ -233,9 +239,7 @@ def create_app(state: AppState) -> FastAPI:
                 status_code=400,
                 detail=f"Unknown storage type: {req.type}",
             )
-        remote = RemoteConfig(
-            name=req.name, type=req.type, options=req.options
-        )
+        remote = RemoteConfig(name=req.name, type=req.type, options=req.options)
         try:
             s.metadata.add_remote(remote)
             s.metadata.save()
@@ -244,7 +248,7 @@ def create_app(state: AppState) -> FastAPI:
         return {"message": f"Remote '{remote.name}' added", "id": remote.id}
 
     @app.delete("/remotes/{name_or_id}")
-    def remove_remote(name_or_id: str):
+    def remove_remote(name_or_id: str) -> Dict[str, Any]:
         s = get_state()
         try:
             removed = s.metadata.remove_remote(name_or_id)
@@ -257,7 +261,9 @@ def create_app(state: AppState) -> FastAPI:
         return {"message": f"Remote '{removed.name}' removed"}
 
     @app.post("/games/{name_or_id}/remote")
-    def assign_remote(name_or_id: str, req: models.AssignRemoteRequest):
+    def assign_remote(
+        name_or_id: str, req: models.AssignRemoteRequest
+    ) -> Dict[str, Any]:
         s = get_state()
         game = _require_game(s, name_or_id)
         if req.remote_id is not None:
@@ -273,14 +279,16 @@ def create_app(state: AppState) -> FastAPI:
         return {"message": f"Remote for '{game.name}' set to {label}"}
 
     @app.post("/remotes/test")
-    def test_remote(req: models.TestRemoteRequest):
+    def test_remote(req: models.TestRemoteRequest) -> Dict[str, Any]:
         s = get_state()
+        result: Dict[str, Any]
         if req.id:
             result = s.sync.test_remote(req.id)
         else:
             from src.models.game import GameEntry
             from src.models.remote_config import RemoteConfig
-            from src.storage import create_storage
+            import src.storage  # noqa: F401
+            from src.storage.base import create_storage
 
             dummy = (
                 s.metadata.games[0]
@@ -296,7 +304,7 @@ def create_app(state: AppState) -> FastAPI:
                 ),
                 game=dummy,
             )
-            result: Dict[str, Any] = {"type": req.type}  # type: ignore[no-redef]
+            result = {"type": req.type}
             try:
                 storage.test_connection()
                 result["reachable"] = True
@@ -308,14 +316,14 @@ def create_app(state: AppState) -> FastAPI:
         return result
 
     @app.post("/remotes/{name_or_id}/status")
-    def remote_status(name_or_id: str):
+    def remote_status(name_or_id: str) -> Dict[str, Any]:
         s = get_state()
         remote = s.metadata.find_remote(name_or_id)
         if not remote:
             raise HTTPException(
                 status_code=404, detail=f"Remote not found: {name_or_id}"
             )
-        results = {}
+        results: Dict[str, Any] = {}
         for game in s.metadata.games:
             if game.remote_id == remote.id:
                 results[game.name] = s.sync.status_for_game(game)
@@ -324,40 +332,33 @@ def create_app(state: AppState) -> FastAPI:
     # ---- push / pull---------------------------------------------------------
 
     @app.post("/push")
-    def push(req: models.PushRequest):
+    def push(req: models.PushRequest) -> Dict[str, Any]:
         s = get_state()
         targets = (
-            [_require_game(s, req.game)]
-            if req.game
-            else s.sync.games_with_remotes()
+            [_require_game(s, req.game)] if req.game else s.sync.games_with_remotes()
         )
         if req.game and not targets:
             raise HTTPException(status_code=400, detail="No games matched")
-        done = {}
+        done: Dict[str, str] = {}
         for game in targets:
             artifact = s.sync.push_game(game, override_remote=req.remote)
             done[game.name] = artifact
         return {"message": f"Pushed {len(done)} game(s)", "artifacts": done}
 
     @app.post("/pull")
-    def pull(req: models.PullRequest):
+    def pull(req: models.PullRequest) -> Dict[str, Any]:
         s = get_state()
         targets = (
-            [_require_game(s, req.game)]
-            if req.game
-            else s.sync.games_with_remotes()
+            [_require_game(s, req.game)] if req.game else s.sync.games_with_remotes()
         )
-        changed = {}
+        changed: Dict[str, bool] = {}
         for game in targets:
-            changed[game.name] = s.sync.pull_game(
-                game, override_remote=req.remote
-            )
+            changed[game.name] = s.sync.pull_game(game, override_remote=req.remote)
         updated = [n for n, c in changed.items() if c]
         unchanged = [n for n, c in changed.items() if not c]
         return {
             "message": (
-                f"Pulled: {len(updated)} updated, "
-                f"{len(unchanged)} up to date"
+                f"Pulled: {len(updated)} updated, " f"{len(unchanged)} up to date"
             ),
             "updated": updated,
             "unchanged": unchanged,
@@ -366,7 +367,7 @@ def create_app(state: AppState) -> FastAPI:
     return app
 
 
-def _require_game(state, name_or_id: str):
+def _require_game(state: AppState, name_or_id: str) -> GameEntry:
     try:
         return state.controller.get_game(name_or_id)
     except GameNotFoundError as ex:
