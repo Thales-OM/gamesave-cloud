@@ -42,5 +42,19 @@ testpaths = ["tests"]
 addopts = "-q"
 
 [tool.black]
-line-length = 79
+line-length = 88
 target-version = ["py310"]
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+namespace_packages = true
+explicit_package_bases = true
+warn_unused_ignores = true
+
+[[tool.mypy.overrides]]
+module = [
+    "boto3.*",
+    "botocore.*",
+]
+ignore_missing_imports = true

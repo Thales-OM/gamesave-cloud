@@ -123,5 +123,5 @@ Environment variables (all optional):
 .venv\Scripts\pytest          # run the test suite
 ```
 
-Commits are guarded by pre-commit hooks running black + flake8 at 79
-columns.
+Commits are guarded by pre-commit hooks running black + flake8 + mypy
+--strict at 88 columns.

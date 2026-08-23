@@ -1,11 +1,47 @@
+default_language_version:
+  python: python3.10
+
 repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-yaml
+      - id: check-toml
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: detect-private-key
+
   - repo: https://github.com/psf/black
-    rev: 25.1.0
+    rev: 25.12.0
     hooks:
       - id: black
-        args: ["--line-length=79", "--target-version=py310", "--preview"]
-        
-  - repo: https://github.com/PyCQA/flake8
-    rev: 7.2.0
+
+  - repo: https://github.com/pycqa/flake8
+    rev: 7.3.0
     hooks:
       - id: flake8
+        additional_dependencies: [flake8-bugbear]
+
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.19.1
+    hooks:
+      - id: mypy
+        additional_dependencies:
+          - click
+          - fastapi
+          - gitpython
+          - keyring
+          - pydantic[types]
+          - pydantic-settings
+          - pytest
+          - requests
+          - types-requests
+          - uvicorn
+          - watchdog
+        args:
+          - --strict
+          - --explicit-package-bases
+          - --namespace-packages
+
+ci:
+  autofix_prs: false

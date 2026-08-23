@@ -1,0 +1,13 @@
+[flake8]
+max-line-length = 88
+extend-ignore =
+    # black-compatible slicing
+    E203,
+    # black-compatible line breaks before binary operators
+    W503
+exclude =
+    .git,
+    .venv,
+    build,
+    dist,
+    __pycache__
