@@ -49,7 +49,7 @@ save folder <-> watchdog events -> SnapshotService (debounce/cooldown)
 ## Installation
 
 ```pwsh
-py -3.10 -m venv .venv
+py -3.11 -m venv .venv
 .venv\Scripts\pip install -e .
 pre-commit install        # optional, for development
 ```
