@@ -2,9 +2,9 @@ import subprocess
 import platform
 from typing import List, Tuple
 from datetime import datetime
-import pytz
+import pytz  # type: ignore[import-untyped]
 from git import Repo
-from src.exceptions import GitError
+from src.exceptions import GitEngineError
 from src.logger import LoggerFactory
 
 logger = LoggerFactory.getLogger(__name__)
@@ -68,7 +68,8 @@ class GitUtils:
     @staticmethod
     def get_repo(path: str) -> Repo:
         if not GitUtils.is_git_repo(path):
-            raise GitError(f"No git repo found at {path}")
+            # TODO: Reconsider raising GitEngineError, make and handle separate class
+            raise GitEngineError(f"No git repo found at {path}")
         return Repo(path)
 
     @staticmethod
@@ -137,7 +138,7 @@ class GitUtils:
     @staticmethod
     def get_commits(
         repo: Repo, branch_name: str
-    ) -> List[Tuple[str, str, datetime]]:
+    ) -> List[Tuple[str, str | bytes, datetime]]:
         commits = []
         for commit in repo.iter_commits(branch_name):
             dt = datetime.fromtimestamp(commit.committed_date, pytz.utc)

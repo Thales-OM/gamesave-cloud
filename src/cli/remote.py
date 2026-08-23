@@ -28,7 +28,12 @@ def types():
     from src.storage import STORAGE_REGISTRY
 
     for name, cls in sorted(STORAGE_REGISTRY.items()):
-        click.echo(f"{name:12s} {cls.__doc__.strip().splitlines()[0]}")
+        desc = (
+            cls.__doc__.strip().splitlines()[0]
+            if cls.__doc__ is not None
+            else "None"
+        )
+        click.echo(f"{name:12s} {desc}")
 
 
 @remote.command("add")

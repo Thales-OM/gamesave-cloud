@@ -3,6 +3,7 @@ import re
 import uuid
 from datetime import datetime, timezone
 from typing import Optional
+from pathlib import Path
 
 from pydantic import BaseModel, DirectoryPath, Field, field_validator
 from src.constants import DEFAULT_MASTER_BRANCH
@@ -38,8 +39,8 @@ class GameEntry(BaseModel):
 
     @field_validator("path", mode="after")
     @classmethod
-    def make_path_absolute(cls, value: DirectoryPath) -> DirectoryPath:
-        return os.path.abspath(value)
+    def make_path_absolute(cls, value: Path) -> Path:
+        return Path(os.path.abspath(value))
 
     @field_validator("default_branch")
     @classmethod

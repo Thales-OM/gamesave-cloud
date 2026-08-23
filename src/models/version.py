@@ -18,7 +18,7 @@ class Version(str):
         if not self.version_pattern.match(version_str):
             raise ValueError(f"Invalid version format: {version_str}")
         self.version_str = version_str
-        self.version_tuple = tuple(
+        self.version_tuple = tuple(  # type: ignore[assignment]
             int(part) for part in version_str.split(".")
         )
 

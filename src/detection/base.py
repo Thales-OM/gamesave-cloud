@@ -102,7 +102,7 @@ def detect_all() -> List[DetectedGame]:
         except Exception as ex:  # noqa: BLE001
             from src.logger import LoggerFactory
 
-            LoggerFactory.get_logger(__name__).warning(
+            LoggerFactory.getLogger(__name__).warning(
                 "detection provider %s failed: %s", provider.name, ex
             )
     return DetectionProvider.dedupe(results)

@@ -68,7 +68,7 @@ def steam_libraries(steam_root: Path) -> List[Path]:
 
 def read_appmanifests(library: Path) -> List[dict]:
     """Parse every appmanifest_*.acf in a library."""
-    apps = []
+    apps: List[dict] = []
     apps_dir = library / "steamapps"
     if not apps_dir.is_dir():
         return apps

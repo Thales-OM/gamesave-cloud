@@ -51,7 +51,9 @@ class GitSettings(BaseSettings):
 
 
 class LoggingSettings(BaseSettings):
-    log_level: str = Field(DEFAULT_LOG_LEVEL, env="LOG_LEVEL")
+    log_level: str = Field(  # type: ignore[call-overload]
+        DEFAULT_LOG_LEVEL, env="LOG_LEVEL"
+    )
 
     @model_validator(mode="after")
     def validate_log_level(self):
@@ -79,7 +81,7 @@ class Settings(BaseSettings):
     metadata: MetadataSettings = MetadataSettings()
     vault: VaultSettings = VaultSettings()
     git: GitSettings = GitSettings()
-    logging: LoggingSettings = LoggingSettings()
+    logging: LoggingSettings = LoggingSettings()  # type: ignore[call-arg]
 
 
 settings = Settings()

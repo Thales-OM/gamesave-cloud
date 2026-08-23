@@ -1,6 +1,6 @@
 import os
 import threading
-from typing import Optional
+from typing import Optional, Dict, Any
 
 from fastapi import FastAPI, HTTPException
 
@@ -285,7 +285,7 @@ def create_app(state: AppState) -> FastAPI:
             dummy = (
                 s.metadata.games[0]
                 if s.metadata.games
-                else GameEntry(name="_probe", path=".")
+                else GameEntry(name="_probe", path=".")  # type: ignore[arg-type]
             )
             storage = create_storage(
                 config=RemoteConfig(
@@ -296,7 +296,7 @@ def create_app(state: AppState) -> FastAPI:
                 ),
                 game=dummy,
             )
-            result = {"type": req.type}
+            result: Dict[str, Any] = {"type": req.type}  # type: ignore[no-redef]
             try:
                 storage.test_connection()
                 result["reachable"] = True

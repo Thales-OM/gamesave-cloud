@@ -50,7 +50,8 @@ class S3Storage(BundleStorage):
 
     def _client(self):
         try:
-            import boto3
+            # TODO: Add stubs
+            import boto3  # type: ignore[import-untyped]
         except ImportError as ex:  # pragma: no cover
             raise StorageError(
                 "boto3 is not installed - install it to use s3 remotes"

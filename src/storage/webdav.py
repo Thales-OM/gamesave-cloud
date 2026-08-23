@@ -1,6 +1,7 @@
 from typing import List
 
-import requests
+from requests import request, Response, RequestException
+from requests.utils import unquote  # type: ignore
 
 from src.exceptions import (
     StorageConnectionError,
@@ -48,16 +49,16 @@ class WebDAVStorage(BundleStorage):
         password = self.secret("password")
         return (user, password) if user else None
 
-    def _request(self, method: str, url: str, **kwargs) -> requests.Response:
+    def _request(self, method: str, url: str, **kwargs) -> Response:
         try:
-            return requests.request(
+            return request(
                 method, url, auth=self._auth(), timeout=60, **kwargs
             )
-        except requests.RequestException as ex:
+        except RequestException as ex:
             raise StorageConnectionError(f"WebDAV error: {ex}") from ex
 
     @staticmethod
-    def _check(resp: requests.Response, action: str) -> None:
+    def _check(resp: Response, action: str) -> None:
         if resp.status_code >= 300:
             raise StorageError(
                 f"WebDAV {action} failed: HTTP {resp.status_code}"
@@ -126,7 +127,7 @@ class WebDAVStorage(BundleStorage):
             r"<D?:?href>([^<]+)</D?:?href>", resp.text, re.IGNORECASE
         ):
             path = href.split("//")[-1].split("/", 1)[-1]
-            path = requests.utils.unquote(path)
+            path = unquote(path)
             if path.endswith(".bundle"):
                 names.add(path)
         return sorted(names - {""})

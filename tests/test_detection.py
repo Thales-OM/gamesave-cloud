@@ -114,6 +114,7 @@ class TestResolveExe:
         exe = loose / "run.exe"
         exe.write_text("x")
         hit = resolve_exe_save_dir(exe)
+        assert hit is not None
         assert hit.path == loose.resolve()
 
     def test_missing_exe_returns_none(self, tmp_path):
@@ -125,9 +126,9 @@ class TestResolveExe:
 
 class TestDetectedGame:
     def test_dedupe_by_name_and_path(self):
-        a = DetectedGame(name="X", path="C:/a", source="steam")
-        b = DetectedGame(name="x", path="c:/A", source="heuristic")
-        c = DetectedGame(name="Y", path="C:/b", source="steam")
+        a = DetectedGame(name="X", path="C:/a", source="steam")  # type: ignore
+        b = DetectedGame(name="x", path="c:/A", source="heuristic")  # type: ignore
+        c = DetectedGame(name="Y", path="C:/b", source="steam")  # type: ignore
         from src.detection.base import DetectionProvider
 
         out = DetectionProvider.dedupe([a, b, c])

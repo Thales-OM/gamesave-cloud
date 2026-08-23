@@ -125,7 +125,7 @@ def remove(game, yes):
 @click.command("status")
 @click.argument("game", required=False, default=None)
 @click.pass_context
-def status(ctx, game):
+def status(ctx, game: str):
     """Show daemon status; with GAME - show detailed engine state."""
     client = get_client()
     data = client.status() if game is None else None

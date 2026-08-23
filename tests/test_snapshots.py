@@ -64,7 +64,7 @@ class TestController:
         ctl = DirectoryController(metadata, svc)
         folder = tmp_path / "fresh-game"
         folder.mkdir()
-        added = ctl.add_game(path=str(folder), name=None, auto_snapshot=True)
+        added = ctl.add_game(path=folder, name=None, auto_snapshot=True)
         assert added.name == "fresh-game"
         assert ctl.get_game(added.id).name == "fresh-game"
         removed = ctl.remove_game(added.id)

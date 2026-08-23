@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Any
 
 from src.exceptions import StorageNotRegisteredError
 from src.models.game import GameEntry
@@ -58,7 +58,7 @@ class RemoteStorage(ABC):
 
     # ---- configuration helpers -----------------------------------------
 
-    def option(self, name: str, default=None):
+    def option(self, name: str, default: Any = None):
         return self.config.options.get(name, default)
 
     def secret(self, name: str) -> str:

@@ -48,6 +48,7 @@ def get_device_id() -> Optional[str]:
             for line in output.splitlines():
                 if "IOPlatformUUID" in line:
                     return line.split("=")[-1].strip().strip('"')
+            return None
         except Exception:
             return None
 

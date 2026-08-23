@@ -22,7 +22,10 @@ def client(tmp_path, save_dir):
     )
     controller = DirectoryController(metadata, service)
     state = AppState(
-        metadata=metadata, controller=controller, service=service, sync=None
+        metadata=metadata,
+        controller=controller,
+        service=service,
+        sync=None,  # type: ignore
     )
     return TestClient(create_app(state))
 
@@ -128,7 +131,11 @@ class TestDetectEndpoint:
 
             def find_games(self):
                 return [
-                    DetectedGame(name="StubGame", path="C:/s", source="stub"),
+                    DetectedGame(
+                        name="StubGame",
+                        path="C:/s",  # type: ignore
+                        source="stub",
+                    ),
                 ]
 
         saved = list(_PROVIDERS)

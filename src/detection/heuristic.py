@@ -39,7 +39,7 @@ class HeuristicProvider(DetectionProvider):
         return out
 
     def _scan(self, folder: Path, depth: int) -> List[DetectedGame]:
-        found = []
+        found: List[DetectedGame] = []
         try:
             entries = sorted(p for p in folder.iterdir() if p.is_dir())
         except OSError:

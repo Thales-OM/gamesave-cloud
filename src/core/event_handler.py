@@ -29,5 +29,5 @@ class TrackedDirectoryHandler(FileSystemEventHandler):
         except Exception as ex:
             logger.error(
                 f"[{self.game.name}] Error handling FS event "
-                f"({event.event_type} {event.src_path}): {ex}"
+                f"({event.event_type} {event.src_path!r}): {ex}"
             )

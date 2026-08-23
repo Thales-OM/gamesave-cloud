@@ -1,7 +1,7 @@
-from typing import List
+from typing import Sequence
 
 
-def print_table(headers: List[str], rows: List[List[str]]) -> None:
+def print_table(headers: Sequence[str], rows: Sequence[Sequence[str]]) -> None:
     widths = [len(h) for h in headers]
     for row in rows:
         for i, cell in enumerate(row):

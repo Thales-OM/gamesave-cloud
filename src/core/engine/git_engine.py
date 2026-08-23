@@ -79,7 +79,7 @@ class GitEngine(SaveEngine):
 
     def _execute(self, cmd: List[str]) -> str:
         try:
-            return self._git.execute(cmd)
+            return self._git.execute(cmd)  # type: ignore[return-value]
         except GitCommandError as ex:
             stderr = (getattr(ex, "stderr", "") or "").strip()
             raise GitEngineError(f"git {cmd[-1]} failed: {stderr}") from ex

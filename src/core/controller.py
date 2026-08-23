@@ -54,7 +54,7 @@ class DirectoryController:
         from src.models.game import GameEntry
 
         game = GameEntry(
-            name=name or GameEntry.create_name_auto(path),
+            name=name or GameEntry.create_name_auto(path=str(path)),
             path=path,
             auto_snapshot=auto_snapshot,
         )
@@ -82,7 +82,7 @@ class DirectoryController:
             return
         observer = Observer()
         handler = TrackedDirectoryHandler(game=game, service=self.service)
-        observer.schedule(handler, game.path, recursive=True)
+        observer.schedule(handler, str(game.path), recursive=True)
         observer.daemon = True
         observer.start()
         self.observers[game.id] = observer

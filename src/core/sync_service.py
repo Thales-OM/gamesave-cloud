@@ -1,5 +1,5 @@
 import threading
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 
 from src.exceptions import MetadataError
 from src.logger import LoggerFactory
@@ -86,10 +86,10 @@ class SyncService:
         dummy = (
             self.metadata.games[0]
             if self.metadata.games
-            else GameEntry(name="_probe", path=".")
+            else GameEntry(name="_probe", path=".")  # type: ignore[arg-type]
         )
         storage = create_storage(config=remote, game=dummy)
-        result = {"name": remote.name, "type": remote.type}
+        result: Dict[str, Any] = {"name": remote.name, "type": remote.type}
         try:
             storage.test_connection()
             result["reachable"] = True
@@ -104,7 +104,7 @@ class SyncService:
             return None
         storage: RemoteStorage = create_storage(config=remote, game=game)
         try:
-            detail = storage.remote_status()
+            detail = storage.status()
         except Exception as ex:
             detail = {"error": str(ex)}
         return {"remote": remote.name, "type": remote.type, **detail}

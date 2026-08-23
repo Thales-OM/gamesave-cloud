@@ -179,7 +179,7 @@ def start_daemon(port: Optional[int] = None, wait_seconds: int = 20) -> int:
     else:
         kwargs["start_new_session"] = True
     argv = [sys.executable, "-m", "src.daemon", "--port", str(port)]
-    subprocess.Popen(
+    subprocess.Popen(  # type: ignore[call-overload]
         argv, stdout=open(log_path, "ab"), stderr=subprocess.STDOUT, **kwargs
     )
     deadline = time.time() + wait_seconds

@@ -27,7 +27,7 @@ try:
 
     _keyring_ok = True
 except ImportError:  # pragma: no cover
-    keyring = None
+    keyring = None  # type: ignore[assignment]
     _keyring_ok = False
 
 
@@ -40,7 +40,7 @@ def store_secret(remote_id: str, field_name: str, value: str) -> bool:
         logger.warning("keyring package not available - secret NOT persisted")
         return False
     try:
-        keyring.set_password(
+        keyring.set_password(  # type: ignore
             KEYRING_SERVICE, _scope(remote_id, field_name), value
         )
         return True
@@ -53,7 +53,7 @@ def load_secret(remote_id: str, field_name: str) -> Optional[str]:
     if not _keyring_ok:
         return None
     try:
-        return keyring.get_password(
+        return keyring.get_password(  # type: ignore
             KEYRING_SERVICE, _scope(remote_id, field_name)
         )
     except KeyringError as ex:
@@ -66,7 +66,7 @@ def delete_secrets(remote_id: str, fields: List[CredentialField]) -> None:
         return
     for field in fields:
         try:
-            keyring.delete_password(
+            keyring.delete_password(  # type: ignore
                 KEYRING_SERVICE, _scope(remote_id, field.name)
             )
         except Exception:
