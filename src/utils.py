@@ -1,5 +1,6 @@
 import socket
 import platform
+import sys
 from typing import Optional
 from src.exceptions import AvailablePortNotFoundError
 
@@ -27,6 +28,8 @@ def get_device_id() -> Optional[str]:
             return None  # Not found
 
     def get_windows_id() -> Optional[str]:
+        if sys.platform != "win32":
+            return None
         import ctypes
 
         try:

@@ -1,6 +1,7 @@
 """Steam library detection via registry + appmanifest files."""
 
 import os
+import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -16,7 +17,7 @@ STEAM_REGISTRY_KEYS = [
 
 def find_steam_root() -> Optional[Path]:
     """Locate the Steam installation folder."""
-    if os.name == "nt":
+    if sys.platform == "win32":
         import winreg
 
         for key_path, value_name in STEAM_REGISTRY_KEYS:

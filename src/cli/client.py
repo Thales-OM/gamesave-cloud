@@ -12,8 +12,6 @@ from src.constants import DAEMON_DEFAULT_PORT
 from src.exceptions import DaemonConnectionError
 from src.settings import settings
 
-IS_WINDOWS = os.name == "nt"
-
 
 def runtime_filepath() -> str:
     return os.path.join(settings.app_data_root, settings.daemon.runtime_filename)
@@ -37,7 +35,7 @@ def read_runtime() -> Optional[Dict[str, Any]]:
 
 
 def _pid_alive(pid: int) -> bool:
-    if IS_WINDOWS:
+    if sys.platform == "win32":
         out = subprocess.run(
             ["tasklist", "/FI", f"PID eq {pid}", "/NH"],
             capture_output=True,
@@ -194,16 +192,23 @@ def start_daemon(port: Optional[int] = None, wait_seconds: int = 20) -> int:
     port = port or DAEMON_DEFAULT_PORT
     log_path = os.path.join(settings.app_data_root, "daemon.log")
     os.makedirs(settings.app_data_root, exist_ok=True)
-    kwargs = {}
-    if IS_WINDOWS:
-        flags = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
-        kwargs["creationflags"] = flags
-    else:
-        kwargs["start_new_session"] = True
     argv = [sys.executable, "-m", "src.daemon", "--port", str(port)]
-    subprocess.Popen(  # type: ignore[call-overload]
-        argv, stdout=open(log_path, "ab"), stderr=subprocess.STDOUT, **kwargs
-    )
+    if sys.platform == "win32":
+        subprocess.Popen(
+            argv,
+            stdout=open(log_path, "ab"),
+            stderr=subprocess.STDOUT,
+            creationflags=(
+                subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
+            ),
+        )
+    else:
+        subprocess.Popen(
+            argv,
+            stdout=open(log_path, "ab"),
+            stderr=subprocess.STDOUT,
+            start_new_session=True,
+        )
     deadline = time.time() + wait_seconds
     while time.time() < deadline:
         if port_open("127.0.0.1", port, timeout=0.3):
