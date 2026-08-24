@@ -1,0 +1,103 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  docker:
+    name: Docker image -> GHCR
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  executables:
+    name: Binaries (${{ matrix.osname }} x64)
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            osname: linux
+          - os: windows-latest
+            osname: windows
+    steps:
+      - uses: actions/checkout@v4
+      # PyInstaller's modulegraph crashes on Python 3.10 bytecode ("IndexError:
+      # tuple index out of range" while scanning pydantic); build with 3.11+.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies and PyInstaller
+        run: pip install -r requirements.txt pyinstaller
+      - name: Build CLI binary
+        run: >
+          pyinstaller --onefile --clean --noconfirm --paths .
+          --name gsc-${{ matrix.osname }}-x64 scripts/gsc_entry.py
+        shell: bash
+      - name: Build daemon binary
+        run: >
+          pyinstaller --onefile --clean --noconfirm --paths .
+          --name gsc-server-${{ matrix.osname }}-x64
+          scripts/server_entry.py
+        shell: bash
+      - name: Smoke test binaries
+        shell: bash
+        run: |
+          BIN="dist/gsc-${{ matrix.osname }}-x64"
+          SRV="dist/gsc-server-${{ matrix.osname }}-x64"
+          if [ "${{ matrix.osname }}" = "windows" ]; then
+            BIN="$BIN.exe"; SRV="$SRV.exe"
+          fi
+          "$BIN" --version
+          "$SRV" --help
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gsc-${{ matrix.osname }}-x64
+          path: dist/*
+          if-no-files-found: error
+
+  release:
+    name: GitHub release
+    needs: [docker, executables]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*
+          generate_release_notes: true

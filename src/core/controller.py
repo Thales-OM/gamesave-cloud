@@ -1,152 +1,122 @@
-from typing import List, Dict, Optional
-from enum import Enum
+from typing import Dict, List, Optional
+
 from pydantic import DirectoryPath
 from watchdog.observers import Observer
 from watchdog.observers.api import BaseObserver
-from src.models.tracked_directory import TrackedDirectory
-from src.core.event_handler import TrackedDirectoryHandler
-from src.exceptions import ControllerCallError
-from src.models.metadata import Metadata
-from src.logger import LoggerFactory
 
+from src.core.event_handler import TrackedDirectoryHandler
+from src.core.snapshot_service import SnapshotService
+from src.exceptions import (
+    ControllerCallError,
+    GameNotFoundError,
+)
+from src.logger import LoggerFactory
+from src.models.game import GameEntry
+from src.models.metadata import Metadata
 
 logger = LoggerFactory.getLogger(__name__)
 
 
-class Status(Enum):
-    NOT_INITIALIZED = "not_initialized"
-    INITIALIZED = "initialized"
-    STARTING = "starting"
-    STARTED = "started"
-    STOPPING = "stopping"
-    STOPPED = "stopped"
-
-
-class ControlPair:
-    directory: TrackedDirectory
-    observer: Optional[BaseObserver] = None
-
-    def __init__(
-        self, dir: TrackedDirectory, obs: Optional[BaseObserver] = None
-    ):
-        self.directory = dir
-        self.observer = obs
-
-
 class DirectoryController:
-    directories: Dict[DirectoryPath, ControlPair] = dict()
-    metadata: Optional[Metadata] = None
-    status: Status = Status.NOT_INITIALIZED
-
-    def __new__(cls, *args, **kwargs):
-        if not hasattr(cls, "_instance"):
-            cls._instance = super(DirectoryController, cls).__new__(cls)
-        return cls._instance
+    """
+    Owns the watchdog observers (one per tracked game) and routes their
+    events into the SnapshotService. Persists game entries via Metadata.
+    """
 
     def __init__(
         self,
-        metadata: Optional[Metadata] = None,
-        directories: Optional[List[TrackedDirectory]] = None,
+        metadata: Metadata,
+        snapshot_service: SnapshotService,
     ):
-        if self.status != Status.NOT_INITIALIZED:
-            logger.warning("Tred to reinitialize the Controller. Skipping.")
+        self.metadata = metadata
+        self.service = snapshot_service
+        self.observers: Dict[str, BaseObserver] = {}
+        self.status: str = "initialized"
+
+    # ---- games -----------------------------------------------------------
+
+    @property
+    def games(self) -> List[GameEntry]:
+        return self.metadata.games
+
+    def get_game(self, name_or_id: str) -> GameEntry:
+        game = self.metadata.find_game(name_or_id)
+        if not game:
+            raise GameNotFoundError(f"Game not found: {name_or_id}")
+        return game
+
+    def add_game(
+        self,
+        path: DirectoryPath,
+        name: Optional[str] = None,
+        auto_snapshot: bool = True,
+    ) -> GameEntry:
+        from src.models.game import GameEntry
+
+        game = GameEntry(
+            name=name or GameEntry.create_name_auto(path=str(path)),
+            path=path,
+            auto_snapshot=auto_snapshot,
+        )
+        self.metadata.add_game(game)
+        self.metadata.save()
+        if game.auto_snapshot and self.status == "started":
+            self.start_observer(game)
+        logger.info(f"Added game '{game.name}' at {game.path}")
+        return game
+
+    def remove_game(self, name_or_id: str) -> GameEntry:
+        game = self.get_game(name_or_id)
+        self.stop_observer(game.id)
+        self.service.stop_tracking(game.id)
+        removed = self.metadata.remove_game(name_or_id)
+        self.metadata.save()
+        logger.info(f"Removed game '{removed.name}'")
+        return removed
+
+    # ---- observers ----------------------------------------------------------
+
+    def start_observer(self, game: GameEntry) -> None:
+        if game.id in self.observers:
+            logger.warning(f"Observer already running for '{game.name}'")
             return
-
-        self.directories: Dict[DirectoryPath, ControlPair] = dict()
-        self.metadata = None
-
-        if not (metadata or directories):
-            raise ValueError(
-                "Neither Metadata, nor directories were provided to Controller"
-            )
-
-        if metadata and directories:
-            logger.warning(
-                "Both Metadata and directories provided \
-                           to Controller. Prioritizing Metadata object."
-            )
-
-        if metadata:
-            self.metadata = metadata
-            for directory in metadata.directories:
-                self.add_directory(dir=directory)
-        else:
-            for directory in directories:
-                self.add_directory(dir=directory)
-
-        self.status = Status.INITIALIZED
-
-    def add_directory(self, dir: TrackedDirectory) -> None:
-        """Start watching a new directory"""
-        if dir.path in self.directories:
-            logger.warning(
-                "Tried adding an already present directory to the Controller"
-            )
-            return
-
-        self.directories[dir.path] = ControlPair(dir=dir)
-
-        if self.metadata:
-            self.metadata.add_directory(dir=dir)
-            self.metadata.save_to_disk()
-
-    def start_watching_directory(self, dir: TrackedDirectory) -> None:
-        if dir.path not in self.directories:
-            logger.warning(
-                "Controller tried starting watching a directory \
-                    that was not initialized. Initializing automatically."
-            )
-            self.add_directory(dir=dir)
-
-        if self.directories[dir.path].observer:
-            logger.warning(
-                "Controller tried to start watching a directory \
-                    with an observer already present. Aborting."
-            )
-            return
-
         observer = Observer()
-        event_handler = TrackedDirectoryHandler()
-
-        observer.schedule(event_handler, dir.path, recursive=True)
+        handler = TrackedDirectoryHandler(game=game, service=self.service)
+        observer.schedule(handler, str(game.path), recursive=True)
+        observer.daemon = True
         observer.start()
-        self.directories[dir.path].observer = observer
+        self.observers[game.id] = observer
+        logger.info(f"Watching save folder: {game.path}")
 
-        logger.info(f"Started watching directory: {dir.path}")
+    def stop_observer(self, game_id: str) -> None:
+        observer = self.observers.pop(game_id, None)
+        if observer:
+            observer.unschedule_all()
+            observer.stop()
+            observer.join(timeout=5)
+
+    # ---- lifecycle -------------------------------------------------------
 
     def start_all(self) -> None:
-        self.status = Status.STARTING
-
-        for pair in self.directories.values():
-            self.start_watching_directory(dir=pair.directory)
-
-        self.status = Status.STARTED
+        if self.status == "started":
+            raise ControllerCallError("Controller already started")
+        self.status = "starting"
+        for game in list(self.games):
+            if game.auto_snapshot:
+                try:
+                    self.start_observer(game)
+                except Exception as ex:
+                    logger.error(f"Failed to watch {game.path}: {ex}")
+        self.status = "started"
+        logger.info(f"Controller started with {len(self.observers)} watcher(s)")
 
     def stop_all(self) -> None:
-        if self.status == Status.STOPPING:
-            raise ControllerCallError(
-                "Tried stopping Controller when already being stopped"
-            )
-        if self.status == Status.STOPPED:
-            raise ControllerCallError(
-                "Tried stopping Controller \
-                                      when already stopped"
-            )
-        if self.status == Status.STARTING:
-            raise ControllerCallError(
-                "Controller currently starting, cannot stop. \
-                    Close the application manually if needed"
-            )
-
-        self.status = Status.STOPPING
-
-        while self.directories:
-            dir_path, pair = self.directories.popitem()
-            if pair.observer:
-                pair.observer.stop()
-                pair.observer.join()
-                logger.debug(f"Stopped observer for: {dir_path}")
-
-        logger.info("All directory watchers have been stopped and removed")
-
-        self.status = Status.STOPPED
+        if self.status == "stopped":
+            raise ControllerCallError("Controller already stopped")
+        self.status = "stopping"
+        for game_id in list(self.observers):
+            self.stop_observer(game_id)
+        for game in list(self.games):
+            self.service.stop_tracking(game.id)
+        self.status = "stopped"
+        logger.info("All directory watchers stopped")

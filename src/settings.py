@@ -1,28 +1,49 @@
-from pydantic import Field, model_validator, DirectoryPath
+import os
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings
-from src.constraints import (
+from src.constants import (
+    APP_DATA_ROOT,
     DEFAULT_LOG_LEVEL,
     DEFAULT_LIMIT_SAVE_INTERVALS,
     DEFAULT_SAVE_COOLDOWN_SEC,
+    DEFAULT_QUIET_PERIOD_SEC,
     DEFAULT_MASTER_BRANCH,
-    METADATA_STORAGE_FILEPATH,
-    DAEMON_PORT_RANGE_MIN,
-    DAEMON_PORT_RANGE_MAX,
+    DAEMON_HOST,
+    DAEMON_DEFAULT_PORT,
+    METADATA_FILENAME,
+    REPOS_DIR_NAME,
 )
 
 
 class DaemonSettings(BaseSettings):
-    port_range_min: int = DAEMON_PORT_RANGE_MIN
-    port_range_max: int = DAEMON_PORT_RANGE_MAX
+    host: str = DAEMON_HOST
+    port: int = DAEMON_DEFAULT_PORT
+    runtime_filename: str = "daemon.json"
 
 
 class SaveStateSettings(BaseSettings):
     limit_save_intervals: bool = DEFAULT_LIMIT_SAVE_INTERVALS
     save_cooldown_sec: int = DEFAULT_SAVE_COOLDOWN_SEC
+    quiet_period_sec: int = DEFAULT_QUIET_PERIOD_SEC
 
 
 class MetadataSettings(BaseSettings):
-    storage_filepath: DirectoryPath = METADATA_STORAGE_FILEPATH
+    directory_path: str = APP_DATA_ROOT
+    filename: str = METADATA_FILENAME
+
+    @property
+    def filepath(self) -> str:
+        return os.path.join(self.directory_path, self.filename)
+
+
+class VaultSettings(BaseSettings):
+    """Root directory holding one repo per tracked game."""
+
+    root: str = APP_DATA_ROOT
+
+    @property
+    def repos_path(self) -> str:
+        return os.path.join(self.root, REPOS_DIR_NAME)
 
 
 class GitSettings(BaseSettings):
@@ -30,10 +51,12 @@ class GitSettings(BaseSettings):
 
 
 class LoggingSettings(BaseSettings):
-    log_level: str = Field(DEFAULT_LOG_LEVEL, env="LOG_LEVEL")
+    log_level: str = Field(  # type: ignore[call-overload]
+        DEFAULT_LOG_LEVEL, env="LOG_LEVEL"
+    )
 
     @model_validator(mode="after")
-    def validate_log_level(self):
+    def validate_log_level(self) -> "LoggingSettings":
         valid_levels = (
             "CRITICAL",
             "FATAL",
@@ -45,19 +68,18 @@ class LoggingSettings(BaseSettings):
             "NOTSET",
         )
         if self.log_level not in valid_levels:
-            raise ValueError(
-                f"Invalid log level. \
-                             Must be one of {valid_levels}"
-            )
+            raise ValueError(f"Invalid log level. Must be one of {valid_levels}")
         return self
 
 
 class Settings(BaseSettings):
+    app_data_root: str = APP_DATA_ROOT
     daemon: DaemonSettings = DaemonSettings()
     save_state: SaveStateSettings = SaveStateSettings()
     metadata: MetadataSettings = MetadataSettings()
+    vault: VaultSettings = VaultSettings()
     git: GitSettings = GitSettings()
-    logging: LoggingSettings = LoggingSettings()
+    logging: LoggingSettings = LoggingSettings()  # type: ignore[call-arg]
 
 
 settings = Settings()
