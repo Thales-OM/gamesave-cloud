@@ -33,6 +33,11 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
             type=raw,value=latest
       - uses: docker/build-push-action@v6
+        env:
+          # Don't export buildx summary/record artifacts; they clutter the
+          # artifact list and break download-artifact in the release job.
+          DOCKER_BUILD_SUMMARY: false
+          DOCKER_BUILD_RECORD_UPLOAD: false
         with:
           context: .
           push: true
@@ -95,6 +100,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
+          pattern: gsc-*
           path: artifacts
           merge-multiple: true
       - uses: softprops/action-gh-release@v2
